@@ -5,7 +5,7 @@ import boto3
 from datetime import date
 
 from stock_analysis.chunking import TickerChunker
-from stock_analysis.data import RULE_CONFIGS, WATCHLISTS
+from stock_analysis.data import RULE_CONFIGS, load_watchlists
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -24,14 +24,16 @@ def handler(event: dict, context: object) -> dict:
     sqs = boto3.client("sqs")
     s3 = boto3.client("s3")
 
+    watchlists = load_watchlists(f"{env_name}-watchlists")
+
     # Build ticker → [watchlist_ids] membership map
     ticker_watchlists: dict = {}
-    for wl_id, wl in WATCHLISTS.items():
+    for wl_id, wl in watchlists.items():
         for ticker in wl["tickers"]:
             ticker_watchlists.setdefault(ticker, []).append(wl_id)
 
     all_tickers = sorted(ticker_watchlists.keys())
-    logger.info("Universe: %d unique tickers across %d watchlists", len(all_tickers), len(WATCHLISTS))
+    logger.info("Universe: %d unique tickers across %d watchlists", len(all_tickers), len(watchlists))
 
     chunker = TickerChunker(chunk_size=_CHUNK_SIZE, prefix="all")
     chunks = chunker.chunk(all_tickers)
@@ -57,7 +59,7 @@ def handler(event: dict, context: object) -> dict:
         "total_symbols": len(all_tickers),
         "watchlists": {
             wl_id: {"name": wl["name"], "tickers": wl["tickers"]}
-            for wl_id, wl in WATCHLISTS.items()
+            for wl_id, wl in watchlists.items()
         },
         "rules": {
             rule_id: {"name": cfg["name"]}

@@ -26,7 +26,7 @@ app/                        Python 3.11 — Lambda handlers + domain logic
     __init__.py             Public API re-exports
     cache.py                S3 raw-data cache planning (CacheRequest, S3CachePlanner)
     chunking.py             Splits ticker lists into 50-ticker chunks (TickerChunker)
-    data.py                 COMPANY_NAMES, _SP500_TICKERS, WATCHLISTS, RULE_CONFIGS, yfinance fetcher + indicator calc
+    data.py                 COMPANY_NAMES, RULE_CONFIGS, load_watchlists(), yfinance fetcher + indicator calc
     earnings.py             Parallel yfinance calendar fetch → {days, date, timing} per ticker
     rules.py                CanonicalRule, RuleCondition, SUPPORTED_FIELDS
     news.py                 Yahoo Finance RSS fetch + Gemini summarization (generate_news_summary)
@@ -225,6 +225,28 @@ AWS_PROFILE=stock-screener aws cloudfront create-invalidation \
   --distribution-id E2IOLFNFUVHVKE --paths '/*'
 ```
 
+### Add or update a watchlist (no redeploy needed)
+
+Watchlists live in the `dev-watchlists` DynamoDB table (`watchlistId` PK, `version` SK = `"latest"`).
+Each item has `name` (display name, e.g. `"Lao Li"`) and `tickers` (string list).
+
+```bash
+# Seed all canonical watchlists from scratch
+./scripts/seed-watchlists.sh
+
+# Or add/update one watchlist via AWS CLI
+aws dynamodb put-item --profile stock-screener --region us-west-2 \
+  --table-name dev-watchlists \
+  --item '{
+    "watchlistId": {"S": "mywatchlist"},
+    "version":     {"S": "latest"},
+    "name":        {"S": "My Watchlist"},
+    "tickers":     {"L": [{"S":"AAPL"},{"S":"MSFT"}]}
+  }'
+```
+
+The next nightly run will pick it up automatically. No Lambda redeploy required.
+
 ### Trigger a manual nightly run
 
 ```bash
@@ -320,11 +342,12 @@ Three alarms fire into this topic:
 - `scripts/run-aggregator.sh` — invoke aggregator only (skips coordinator + workers); useful after news/config fixes
 - Historical report navigation via `/?date=YYYY-MM-DD`
 - CloudWatch alarms for coordinator errors, aggregator errors, DLQ depth
-- Full test suite: Python pytest (22), CDK Jest (14), JS node:test (28) = **64 tests**
+- Full test suite: Python pytest (28), CDK Jest (14), JS node:test (28) = **70 tests**
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
 - **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Fidelity chart link; back navigation
 - `COMPANY_NAMES` expanded to ~280 entries covering full S&P 500 + all watchlist tickers (was ~70 with duplicate keys)
-- `_SP500_TICKERS` and `WATCHLISTS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there
+- `WATCHLISTS` and `_SP500_TICKERS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there (both subsequently removed in favour of DynamoDB)
+- **DynamoDB-backed watchlists** — `WATCHLISTS` constant removed from `data.py`; replaced by `load_watchlists(table_name)` which scans the `{ENV_NAME}-watchlists` table (version="latest" items). Coordinator calls it at runtime. Seed with `scripts/seed-watchlists.sh`. New watchlists no longer need a redeploy.
 - **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for top 8 high-priority tickers, calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
 - **Gemini API key** in AWS Secrets Manager as `stock-analysis/gemini-api-key`; managed via `scripts/manage-gemini-key.sh`; local dev uses `GEMINI_API_KEY` env var
 - **Earnings API key** in AWS Secrets Manager as `stock-analysis/earnings-api-key`; local dev uses `EARNINGS_API_KEY`. Workers use yfinance for dates, then call Earnings API only for the distinct dates yfinance returned. Daily Earnings API responses are cached in S3 at `raw/earnings-api/date=YYYY-MM-DD/calendar.json` to stay within the free-tier limit.
@@ -332,9 +355,8 @@ Three alarms fire into this topic:
 
 ### Next priorities ⬜
 1. **Subscribe alarm email** — manual: `aws sns subscribe` to `dev-stock-analysis-alarms`
-2. **DynamoDB-backed watchlists** — remove hardcoded `WATCHLISTS` from `data.py`; load from `dev-watchlists` table so new watchlists don't need a redeploy
-3. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
-4. **Mobile layout** — current grid is desktop-first
+2. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
+3. **Mobile layout** — current grid is desktop-first
 
 ### Out of scope for MVP
 - Real-time intraday screening
