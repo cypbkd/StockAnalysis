@@ -1,0 +1,9 @@
+{
+  "name": "stock-analysis-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node scripts/dev-server.mjs"
+  }
+}

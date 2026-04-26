@@ -1,0 +1,34 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+*.pyc
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# CDK
+cdk.out/
+
+# Local env
+.env
+.env.*
+
+# Generated reports and caches
+.mypy_cache/
+
+# CDK context (contains AWS account ID)
+infra/cdk.context.json
+
+# Claude Code local settings (may contain credentials)
+.claude/
+
+# Temporary/scratch files
+tmp/

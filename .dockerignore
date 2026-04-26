@@ -1,0 +1,23 @@
+# CDK staging output — must never be included in the Docker build context
+infra/cdk.out/
+
+# Node dependencies
+infra/node_modules/
+web/node_modules/
+
+# Python caches
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.pytest_cache/
+
+# Local dev / editor
+.DS_Store
+.claude/
+*.egg-info/
+
+# Not needed inside the Lambda image
+docs/
+scripts/
+containers/
+web/
