@@ -357,6 +357,8 @@ Three alarms fire into this topic:
 1. **Subscribe alarm email** — manual: `aws sns subscribe` to `dev-stock-analysis-alarms`
 2. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
 3. **Mobile layout** — current grid is desktop-first
+4. **DynamoDB-backed rules** — `RULE_CONFIGS` is hardcoded in `data.py`; load from `dev-rules` table at runtime so rules can be updated without a redeploy (mirrors how watchlists work)
+5. **DynamoDB-backed run history** — `dev-runs` table is provisioned but unused; record each nightly run's metadata (date, ticker count, signal count, S3 report key) so run history can be queried without scanning S3
 
 ### Out of scope for MVP
 - Real-time intraday screening
