@@ -26,7 +26,7 @@ app/                        Python 3.11 — Lambda handlers + domain logic
     __init__.py             Public API re-exports
     cache.py                S3 raw-data cache planning (CacheRequest, S3CachePlanner)
     chunking.py             Splits ticker lists into 50-ticker chunks (TickerChunker)
-    data.py                 COMPANY_NAMES, _SP500_TICKERS, RULE_CONFIGS, load_watchlists(), yfinance fetcher + indicator calc
+    data.py                 COMPANY_NAMES, RULE_CONFIGS, load_watchlists(), yfinance fetcher + indicator calc
     earnings.py             Parallel yfinance calendar fetch → {days, date, timing} per ticker
     rules.py                CanonicalRule, RuleCondition, SUPPORTED_FIELDS
     news.py                 Yahoo Finance RSS fetch + Gemini summarization (generate_news_summary)
@@ -346,7 +346,7 @@ Three alarms fire into this topic:
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
 - **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Fidelity chart link; back navigation
 - `COMPANY_NAMES` expanded to ~280 entries covering full S&P 500 + all watchlist tickers (was ~70 with duplicate keys)
-- `_SP500_TICKERS` and `WATCHLISTS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there
+- `WATCHLISTS` and `_SP500_TICKERS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there (both subsequently removed in favour of DynamoDB)
 - **DynamoDB-backed watchlists** — `WATCHLISTS` constant removed from `data.py`; replaced by `load_watchlists(table_name)` which scans the `{ENV_NAME}-watchlists` table (version="latest" items). Coordinator calls it at runtime. Seed with `scripts/seed-watchlists.sh`. New watchlists no longer need a redeploy.
 - **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for top 8 high-priority tickers, calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
 - **Gemini API key** in AWS Secrets Manager as `stock-analysis/gemini-api-key`; managed via `scripts/manage-gemini-key.sh`; local dev uses `GEMINI_API_KEY` env var
@@ -356,7 +356,7 @@ Three alarms fire into this topic:
 ### Next priorities ⬜
 1. **Subscribe alarm email** — manual: `aws sns subscribe` to `dev-stock-analysis-alarms`
 2. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
-4. **Mobile layout** — current grid is desktop-first
+3. **Mobile layout** — current grid is desktop-first
 
 ### Out of scope for MVP
 - Real-time intraday screening
