@@ -253,25 +253,37 @@ _SP500_TICKERS = [
     "WTW", "WYNN", "XEL", "XYL", "YUM", "ZBRA", "ZBH", "ZTS",
 ]
 
-# Watchlists — ticker group membership, independent of rules.
-# Coordinator reads this to build per-chunk SQS payloads.
-WATCHLISTS: Dict[str, Dict] = {
-    "spy500": {
-        "name": "S&P 500",
-        "tickers": _SP500_TICKERS,
-    },
-    "fang": {
-        "name": "FANG+",
-        "tickers": ["META", "AMZN", "NFLX", "GOOGL", "MSFT", "NVDA", "AAPL", "TSLA"],
-    },
-    "laoli": {
-        "name": "Lao Li",
-        "tickers": [
-            "TSLA", "NVDA", "AMD", "GOOG", "AAPL", "MSFT",
-            "COST", "DIS", "BRK.B", "SOFI", "V", "ORCL", "NFLX", "PLTR",
-        ],
-    },
-}
+def load_watchlists(table_name: str) -> Dict[str, Dict]:
+    """Load watchlist definitions from DynamoDB (version="latest" items).
+
+    Each item must have: watchlistId (str), version="latest", name (str), tickers (list[str]).
+    Returns the same shape as the old WATCHLISTS constant.
+    """
+    import boto3
+    from boto3.dynamodb.conditions import Attr
+
+    dynamodb = boto3.resource("dynamodb")
+    table = dynamodb.Table(table_name)
+
+    response = table.scan(FilterExpression=Attr("version").eq("latest"))
+    items = list(response.get("Items", []))
+    while "LastEvaluatedKey" in response:
+        response = table.scan(
+            FilterExpression=Attr("version").eq("latest"),
+            ExclusiveStartKey=response["LastEvaluatedKey"],
+        )
+        items.extend(response.get("Items", []))
+
+    watchlists: Dict[str, Dict] = {}
+    for item in items:
+        wl_id = item["watchlistId"]
+        watchlists[wl_id] = {
+            "name": item["name"],
+            "tickers": list(item["tickers"]),
+        }
+
+    logger.info("Loaded %d watchlists from %s", len(watchlists), table_name)
+    return watchlists
 
 RULE_CONFIGS: Dict[str, Dict] = {
     "ma_stack": {
