@@ -198,6 +198,30 @@ export class StockAnalysisInfraStack extends Stack {
       },
     });
 
+    // On-demand analysis Lambda — called by the frontend when a user opens a
+    // ticker detail page.  Uses a Function URL (no API Gateway) with open CORS
+    // so the static dashboard can call it directly from the browser.
+    const analysisFn = new lambda.Function(this, "AnalysisFunction", {
+      ...sharedFnProps,
+      handler: "stock_analysis.handlers.analysis.handler",
+      timeout: Duration.minutes(1),
+      memorySize: 256,
+      environment: {
+        ...sharedEnv,
+        GEMINI_SECRET_NAME: "stock-analysis/gemini-api-key",
+      },
+    });
+
+    const analysisFnUrl = analysisFn.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.NONE,
+      cors: {
+        allowedOrigins: ["*"],
+        allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.ALL],
+        allowedHeaders: ["Content-Type"],
+        maxAge: Duration.hours(1),
+      },
+    });
+
     // Worker consumes from SQS (one chunk per invocation)
     workerFn.addEventSource(new lambda_events.SqsEventSource(workerQueue, {
       batchSize: 1,
@@ -327,6 +351,16 @@ export class StockAnalysisInfraStack extends Stack {
     new CfnOutput(this, "AggregatorFunctionName", {
       value: aggregatorFn.functionName,
       description: "Aggregator Lambda (for manual triggers)",
+    });
+
+    new CfnOutput(this, "AnalysisFunctionName", {
+      value: analysisFn.functionName,
+      description: "On-demand analysis Lambda",
+    });
+
+    new CfnOutput(this, "AnalysisFunctionUrl", {
+      value: analysisFnUrl.url,
+      description: "Function URL for the on-demand AI analysis endpoint — written to /config.json on deploy",
     });
 
     new CfnOutput(this, "AlarmTopicArn", {

@@ -47,8 +47,8 @@ describe("StockAnalysisInfraStack", () => {
     });
   });
 
-  it("creates the coordinator, worker, and aggregator Lambda functions", () => {
-    template.resourceCountIs("AWS::Lambda::Function", 3);
+  it("creates the coordinator, worker, aggregator, and analysis Lambda functions", () => {
+    template.resourceCountIs("AWS::Lambda::Function", 4);
     template.hasResourceProperties("AWS::Lambda::Function", {
       Handler: "stock_analysis.handlers.coordinator.handler",
       Runtime: "python3.11",

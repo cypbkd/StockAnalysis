@@ -337,6 +337,127 @@ function parseReasonConditions(reason) {
   return reason.split(';').map(s => s.trim()).filter(Boolean);
 }
 
+export function renderDetailAnalysis(analysis) {
+  if (!analysis || typeof analysis !== 'object') return '';
+
+  const summaryHtml = analysis.summary
+    ? `<p class="ai-summary body-copy">${escapeHtml(analysis.summary)}</p>`
+    : '';
+
+  const rulesRows = (analysis.rules ?? []).map(r => {
+    const statusIcon = r.status === 'warning' ? '⚠️' : '🚩';
+    const statusLabel = r.status === 'warning' ? 'Monitoring' : 'Triggered';
+    return `
+      <tr>
+        <td class="ai-table-priority">${escapeHtml(r.priority ?? 'High')}</td>
+        <td class="ai-table-rule">${escapeHtml(r.name ?? '')}</td>
+        <td class="ai-table-status">${escapeHtml(statusIcon)} ${escapeHtml(statusLabel)}</td>
+        <td class="ai-table-details">${escapeHtml(r.details ?? '')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const targets = analysis.priceTargets ?? {};
+
+  const resistanceHtml = (targets.resistance ?? []).map(r => `
+    <div class="price-level">
+      <span class="price-level-label">${escapeHtml(r.label ?? '')}</span>
+      <span class="price-level-value font-mono">${escapeHtml(formatPrice(r.price))}</span>
+      ${r.note ? `<span class="price-level-note">${escapeHtml(r.note)}</span>` : ''}
+    </div>
+  `).join('');
+
+  const supportHtml = (targets.support ?? []).map(r => `
+    <div class="price-level">
+      <span class="price-level-label">${escapeHtml(r.label ?? '')}</span>
+      <span class="price-level-value font-mono">${escapeHtml(formatPrice(r.price))}</span>
+      ${r.note ? `<span class="price-level-note">${escapeHtml(r.note)}</span>` : ''}
+    </div>
+  `).join('');
+
+  const entry = targets.entry;
+  const stopLoss = targets.stopLoss;
+  const entryHtml = entry ? `
+    <div class="ai-price-col">
+      <div class="ai-price-col-header">Entry / Exit</div>
+      <div class="price-level">
+        <span class="price-level-label">Ideal Entry</span>
+        <span class="price-level-value font-mono">${escapeHtml(formatPrice(entry.low))} — ${escapeHtml(formatPrice(entry.high))}</span>
+        ${entry.note ? `<span class="price-level-note">${escapeHtml(entry.note)}</span>` : ''}
+      </div>
+      ${stopLoss ? `
+        <div class="price-level price-level-stop">
+          <span class="price-level-label">Hard Stop-Loss</span>
+          <span class="price-level-value font-mono is-negative">${escapeHtml(formatPrice(stopLoss.price))}</span>
+          ${stopLoss.note ? `<span class="price-level-note">${escapeHtml(stopLoss.note)}</span>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  ` : '';
+
+  const verdict = analysis.verdict ?? {};
+  const verdictHtml = (verdict.action || verdict.rationale || verdict.strategy) ? `
+    <div class="ai-block ai-verdict">
+      <div class="ai-verdict-header">
+        <h3 class="ai-block-heading">Final Trading Verdict</h3>
+        ${verdict.action ? `<span class="ai-verdict-action">${escapeHtml(verdict.action)}</span>` : ''}
+      </div>
+      ${verdict.rationale ? `<p class="body-copy">${escapeHtml(verdict.rationale)}</p>` : ''}
+      ${verdict.strategy ? `<p class="body-copy ai-strategy">${escapeHtml(verdict.strategy)}</p>` : ''}
+    </div>
+  ` : '';
+
+  return `
+    <section class="ai-analysis-section">
+      <div class="section-heading">
+        <span class="section-label">AI Analysis</span>
+        <h2>Trading Brief</h2>
+      </div>
+
+      ${summaryHtml}
+
+      ${rulesRows ? `
+        <div class="ai-block">
+          <h3 class="ai-block-heading">Rule Scanning Status</h3>
+          <div class="ai-table-wrapper">
+            <table class="ai-rule-table">
+              <thead>
+                <tr>
+                  <th>Priority</th><th>Rule</th><th>Status</th><th>Trigger Details</th>
+                </tr>
+              </thead>
+              <tbody>${rulesRows}</tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+
+      ${(resistanceHtml || supportHtml || entryHtml) ? `
+        <div class="ai-block">
+          <h3 class="ai-block-heading">Price Action Navigation</h3>
+          <div class="ai-price-grid">
+            ${resistanceHtml ? `
+              <div class="ai-price-col">
+                <div class="ai-price-col-header">Resistance</div>
+                ${resistanceHtml}
+              </div>
+            ` : ''}
+            ${supportHtml ? `
+              <div class="ai-price-col">
+                <div class="ai-price-col-header">Support</div>
+                ${supportHtml}
+              </div>
+            ` : ''}
+            ${entryHtml}
+          </div>
+        </div>
+      ` : ''}
+
+      ${verdictHtml}
+    </section>
+  `;
+}
+
 export function renderSymbolDetail(report, symbol) {
   const normalized = createEmptyReport(report);
   const allSignals = [...(normalized.stockSignals ?? []), ...(normalized.optionsSignals ?? [])];
@@ -428,6 +549,16 @@ export function renderSymbolDetail(report, symbol) {
             ${ruleCards || '<p class="empty-state">No rule details available.</p>'}
           </div>
         </section>
+
+        <div id="ai-analysis-placeholder" class="ai-analysis-loading" aria-live="polite" aria-label="Loading trading brief">
+          <div class="ai-analysis-section">
+            <div class="section-heading">
+              <span class="section-label">AI Analysis</span>
+              <h2>Trading Brief</h2>
+            </div>
+            <p class="ai-loading-message">Generating trading brief…</p>
+          </div>
+        </div>
 
         <div class="ornament-divider" aria-hidden="true">✧ ✧ ✧</div>
       </main>

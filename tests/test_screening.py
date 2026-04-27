@@ -133,6 +133,79 @@ def test_build_nightly_report_matches_web_contract_shape():
     assert report["newsSummary"] == "NVDA extended its rally above the 20-day moving average on continued AI demand."
 
 
+def test_signal_includes_technical_data_for_on_demand_analysis():
+    """technicalData is included in each signal so the analysis Lambda can use it."""
+    engine = DeterministicScreeningEngine()
+    rule = CanonicalRule.from_mapping({
+        "logic": "and",
+        "name": "Pivot Test",
+        "conditions": [{"field": "close", "op": ">", "value_from": "sma_20"}],
+    })
+    report = build_nightly_report(
+        trade_date=date(2026, 4, 26),
+        timezone="America/Los_Angeles",
+        watchlists=[],
+        stock_results=engine.screen(
+            [MarketSnapshot(
+                symbol="AAPL",
+                metrics={
+                    "close": 200.0, "sma_20": 190.0, "change_percent": 1.0,
+                    "volume_ratio": 1.8, "rsi_14": 62.0,
+                    "ema_20": 192.0, "sma_50": 180.0,
+                    "high_52w": 210.0, "low_52w": 140.0,
+                    "pivot_r1": 205.0, "pivot_r2": 212.0,
+                    "pivot_s1": 195.0, "pivot_s2": 188.0,
+                    "earnings_date": "2026-05-01",
+                    "earnings_in_days": 5,
+                    "earnings_timing": "After Close",
+                },
+            )],
+            rule,
+        ),
+        option_ideas=[],
+        earnings_watch=[],
+        active_rules=[rule],
+        highlights=[],
+    )
+    signal = report["stockSignals"][0]
+    td = signal["technicalData"]
+    assert td["volumeRatio"] == 1.8
+    assert td["rsi14"] == 62.0
+    assert td["ema20"] == 192.0
+    assert td["sma50"] == 180.0
+    assert td["pivotR1"] == 205.0
+    assert td["pivotS1"] == 195.0
+    assert td["earningsDate"] == "2026-05-01"
+    assert td["earningsInDays"] == 5
+    assert td["earningsTiming"] == "After Close"
+
+
+def test_signal_technical_data_omits_missing_fields():
+    """technicalData only includes fields present in metrics (no None values)."""
+    engine = DeterministicScreeningEngine()
+    rule = CanonicalRule.from_mapping({
+        "logic": "and",
+        "name": "Simple",
+        "conditions": [{"field": "close", "op": ">", "value_from": "sma_20"}],
+    })
+    report = build_nightly_report(
+        trade_date=date(2026, 4, 26),
+        timezone="America/Los_Angeles",
+        watchlists=[],
+        stock_results=engine.screen(
+            [MarketSnapshot(symbol="XYZ", metrics={"close": 50.0, "sma_20": 45.0, "change_percent": 0.5})],
+            rule,
+        ),
+        option_ideas=[],
+        earnings_watch=[],
+        active_rules=[rule],
+        highlights=[],
+    )
+    td = report["stockSignals"][0]["technicalData"]
+    assert "volumeRatio" not in td
+    assert "earningsDate" not in td
+
+
 def test_build_nightly_report_defaults_news_summary_to_empty_string():
     report = build_nightly_report(
         trade_date=date(2026, 4, 23),

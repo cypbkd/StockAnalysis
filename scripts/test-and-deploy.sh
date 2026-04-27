@@ -58,6 +58,22 @@ AWS_PROFILE="$AWS_PROFILE" \
   npx cdk deploy "$CDK_STACK" --require-approval never || fail "CDK deploy failed"
 ok "CDK deploy succeeded"
 
+step "Write config.json → S3 (analysis Lambda URL)"
+ANALYSIS_URL=$(AWS_PROFILE="$AWS_PROFILE" aws cloudformation describe-stacks \
+  --stack-name "$CDK_STACK" \
+  --region "$AWS_REGION" \
+  --query 'Stacks[0].Outputs[?OutputKey==`AnalysisFunctionUrl`].OutputValue' \
+  --output text 2>/dev/null || echo "")
+if [[ -n "$ANALYSIS_URL" ]]; then
+  echo "{\"analysisUrl\":\"$ANALYSIS_URL\"}" | \
+    AWS_PROFILE="$AWS_PROFILE" aws s3 cp - "s3://$S3_BUCKET/config.json" \
+      --content-type "application/json" \
+      --region "$AWS_REGION" || fail "config.json upload failed"
+  ok "config.json written with analysisUrl=$ANALYSIS_URL"
+else
+  echo "  ⚠ AnalysisFunctionUrl output not found — config.json not written"
+fi
+
 step "Sync web assets → S3"
 cd "$REPO_ROOT"
 AWS_PROFILE="$AWS_PROFILE" aws s3 sync web \

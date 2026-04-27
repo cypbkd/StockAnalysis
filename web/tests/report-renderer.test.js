@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createEmptyReport } from '../src/report-model.js';
-import { renderReportApp, renderSymbolDetail } from '../src/report-renderer.js';
+import { renderReportApp, renderSymbolDetail, renderDetailAnalysis } from '../src/report-renderer.js';
 
 const sampleReport = createEmptyReport({
   reportDate: '2026-04-23',
@@ -174,6 +174,31 @@ test('renderReportApp signal card links ticker to detail page hash, not Fidelity
 
 // ── renderSymbolDetail ────────────────────────────────────────────────────────
 
+const sampleDetailAnalysis = {
+  summary: 'NVIDIA is surging on AI infrastructure demand with a powerful confluence of technical signals.',
+  rules: [
+    { name: 'ATH Breakout', priority: 'High', status: 'triggered', details: 'Close $872.45 >= 52-Week High $872.45 on volume ratio 2.50x' },
+    { name: 'High-Volume Momentum Day', priority: 'High', status: 'triggered', details: 'Volume ratio 2.50x >= 2.0x; RSI 68.4 >= 55' },
+  ],
+  priceTargets: {
+    resistance: [
+      { label: 'R1 (Pivot)', price: 900.0, note: 'First pivot resistance' },
+      { label: 'R2 (Pivot)', price: 930.0, note: 'Extended target' },
+    ],
+    support: [
+      { label: 'S1 (Pivot)', price: 840.0, note: 'First pivot support' },
+      { label: 'EMA-20', price: 830.0, note: 'Short-term trend anchor' },
+    ],
+    entry: { low: 840.0, high: 860.0, note: 'Wait for pullback to S1 pivot area' },
+    stopLoss: { price: 810.0, note: 'Below S2 — invalidates breakout thesis' },
+  },
+  verdict: {
+    action: 'Hold / Tactical Buy on Pullback',
+    rationale: 'ATH Breakout and High-Volume Momentum Day confirm institutional accumulation.',
+    strategy: 'Do not chase above $872. Wait for pullback to $840-$860 S1 zone. Hard stop below $810.',
+  },
+};
+
 const detailReport = createEmptyReport({
   reportDate: '2026-04-23',
   ruleSets: [
@@ -191,6 +216,7 @@ const detailReport = createEmptyReport({
       changePercent: 2.3,
       reason: 'close 872.45 >= 850.00; volume_ratio 2.50 >= 1.50',
       status: 'high priority',
+      detailAnalysis: sampleDetailAnalysis,
     },
   ],
   optionsSignals: [],
@@ -265,4 +291,80 @@ test('renderSymbolDetail shows watchlist tags', () => {
   const html = renderSymbolDetail(detailReport, 'NVDA');
 
   assert.match(html, /spy500/i);
+});
+
+// ── renderSymbolDetail — AI analysis loading placeholder ─────────────────────
+
+test('renderSymbolDetail always renders the AI analysis loading placeholder', () => {
+  const html = renderSymbolDetail(detailReport, 'NVDA');
+
+  assert.match(html, /ai-analysis-placeholder/);
+  assert.match(html, /Trading Brief/);
+  assert.match(html, /Generating trading brief/);
+});
+
+test('renderSymbolDetail placeholder has aria-live for screen readers', () => {
+  const html = renderSymbolDetail(detailReport, 'NVDA');
+
+  assert.match(html, /aria-live="polite"/);
+});
+
+// ── renderDetailAnalysis ──────────────────────────────────────────────────────
+
+test('renderDetailAnalysis renders summary paragraph', () => {
+  const html = renderDetailAnalysis(sampleDetailAnalysis);
+
+  assert.match(html, /NVIDIA is surging on AI infrastructure demand/);
+  assert.match(html, /ai-summary/);
+});
+
+test('renderDetailAnalysis renders rule scanning table with triggered rules', () => {
+  const html = renderDetailAnalysis(sampleDetailAnalysis);
+
+  assert.match(html, /Rule Scanning Status/);
+  assert.match(html, /ai-rule-table/);
+  assert.match(html, /Close \$872\.45 &gt;= 52-Week High/);
+  assert.match(html, /Triggered/);
+});
+
+test('renderDetailAnalysis renders price action navigation with resistance and support', () => {
+  const html = renderDetailAnalysis(sampleDetailAnalysis);
+
+  assert.match(html, /Price Action Navigation/);
+  assert.match(html, /Resistance/i);
+  assert.match(html, /Support/i);
+  assert.match(html, /\$900\.00/);
+  assert.match(html, /\$840\.00/);
+});
+
+test('renderDetailAnalysis renders entry zone and stop-loss', () => {
+  const html = renderDetailAnalysis(sampleDetailAnalysis);
+
+  assert.match(html, /Entry \/ Exit/i);
+  assert.match(html, /\$840\.00/);
+  assert.match(html, /\$860\.00/);
+  assert.match(html, /\$810\.00/);
+  assert.match(html, /price-level-stop/);
+});
+
+test('renderDetailAnalysis renders final trading verdict with action badge', () => {
+  const html = renderDetailAnalysis(sampleDetailAnalysis);
+
+  assert.match(html, /Final Trading Verdict/);
+  assert.match(html, /Hold \/ Tactical Buy on Pullback/);
+  assert.match(html, /ai-verdict-action/);
+  assert.match(html, /institutional accumulation/);
+  assert.match(html, /ai-strategy/);
+});
+
+test('renderDetailAnalysis returns empty string for null/undefined', () => {
+  assert.strictEqual(renderDetailAnalysis(null), '');
+  assert.strictEqual(renderDetailAnalysis(undefined), '');
+});
+
+test('renderDetailAnalysis omits rule table when rules array is empty', () => {
+  const html = renderDetailAnalysis({ ...sampleDetailAnalysis, rules: [] });
+
+  assert.doesNotMatch(html, /ai-rule-table/);
+  assert.match(html, /ai-summary/);
 });

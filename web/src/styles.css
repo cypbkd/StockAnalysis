@@ -1091,6 +1091,196 @@ dd {
   max-width: 900px;
 }
 
+/* ── AI Analysis Section (detail page) ───────────────────── */
+
+.ai-analysis-loading .ai-analysis-section {
+  opacity: 0.6;
+}
+
+.ai-loading-message {
+  font-style: italic;
+  color: var(--neutral-500);
+  margin: 16px 0;
+  animation: ai-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.ai-analysis-section {
+  margin-top: 32px;
+  border-top: var(--border-heavy);
+  padding-top: 16px;
+}
+
+.ai-summary {
+  margin: 16px 0 24px;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.ai-block {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border: var(--border);
+}
+
+.ai-block-heading {
+  margin: 0 0 14px;
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--neutral-600);
+}
+
+.ai-table-wrapper {
+  overflow-x: auto;
+}
+
+.ai-rule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ai-rule-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: var(--border-heavy);
+  white-space: nowrap;
+}
+
+.ai-rule-table td {
+  padding: 10px 12px;
+  border-bottom: var(--border);
+  vertical-align: top;
+}
+
+.ai-rule-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ai-table-priority {
+  white-space: nowrap;
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--neutral-600);
+}
+
+.ai-table-rule {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ai-table-status {
+  white-space: nowrap;
+}
+
+.ai-table-details {
+  color: var(--neutral-700);
+  font-size: 0.82rem;
+}
+
+.ai-price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 20px;
+}
+
+.ai-price-col-header {
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: var(--border);
+}
+
+.price-level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--muted);
+}
+
+.price-level:last-child {
+  border-bottom: none;
+}
+
+.price-level-label {
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--neutral-600);
+}
+
+.price-level-value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.price-level-value.is-negative {
+  color: var(--accent);
+}
+
+.price-level-note {
+  font-size: 0.75rem;
+  color: var(--neutral-500);
+  line-height: 1.4;
+}
+
+.price-level-stop .price-level-label {
+  color: var(--accent);
+}
+
+.ai-verdict {
+  border-left: 4px solid var(--ink);
+  margin-top: 24px;
+}
+
+.ai-verdict-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-verdict-action {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: var(--border-heavy);
+}
+
+.ai-strategy {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: var(--border);
+  font-style: italic;
+}
+
 /* ── end symbol detail ────────────────────────────────────── */
 
 .ornament-divider {
