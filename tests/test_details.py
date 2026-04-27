@@ -238,3 +238,92 @@ class TestGenerateTickerAnalysis:
              patch.dict(sys.modules, {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_types}):
             result = m.generate_ticker_analysis("NVDA", {}, [], _SAMPLE_RULE_CONFIGS, "2026-04-26")
         assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# Integration test — requires GEMINI_API_KEY in environment
+# ---------------------------------------------------------------------------
+
+_AMZN_METRICS = {
+    "company_name": "Amazon.com",
+    "close": 185.30,
+    "change_percent": 1.8,
+    "volume_ratio": 1.45,
+    "rsi_14": 61.2,
+    "ema_20": 178.50,
+    "sma_20": 177.80,
+    "sma_50": 168.40,
+    "high_52w": 191.70,
+    "low_52w": 118.35,
+    "pivot_r1": 192.00,
+    "pivot_r2": 198.50,
+    "pivot_s1": 179.00,
+    "pivot_s2": 172.50,
+    "earnings_date": "2026-05-01",
+    "earnings_in_days": 5,
+    "earnings_timing": "After Close",
+}
+
+_AMZN_RULE_CONFIGS = {
+    "ma_stack": {
+        "name": "Bullish MA Stack",
+        "priority": "high",
+        "rule_def": {"description": "Close > EMA-20 > SMA-50 — all three in bullish alignment."},
+    },
+    "pre_earnings": {
+        "name": "Pre-Earnings Momentum",
+        "priority": "high",
+        "rule_def": {"description": "Stock trending higher within 1–7 days of earnings report."},
+    },
+}
+
+
+@pytest.mark.skipif(
+    not __import__("os").environ.get("GEMINI_API_KEY"),
+    reason="GEMINI_API_KEY not set — skipping live Gemini integration test",
+)
+def test_integration_amzn_analysis_shape():
+    """Live call to Gemini: verify AMZN analysis returns the expected JSON contract."""
+    m = _reload()
+    result = m.generate_ticker_analysis(
+        ticker="AMZN",
+        metrics=_AMZN_METRICS,
+        rule_names=["Bullish MA Stack", "Pre-Earnings Momentum"],
+        rule_configs=_AMZN_RULE_CONFIGS,
+        trade_date="2026-04-26",
+    )
+
+    assert result is not None, "Gemini returned None — check API key and quota"
+
+    # Top-level keys
+    assert "summary" in result
+    assert "rules" in result
+    assert "priceTargets" in result
+    assert "verdict" in result
+
+    # Summary is a non-empty string
+    assert isinstance(result["summary"], str) and len(result["summary"]) > 20
+
+    # Each rule entry has required fields
+    for rule in result["rules"]:
+        assert "name" in rule
+        assert "status" in rule
+        assert "details" in rule
+
+    # priceTargets structure
+    pt = result["priceTargets"]
+    assert isinstance(pt.get("resistance"), list) and len(pt["resistance"]) > 0
+    assert isinstance(pt.get("support"), list) and len(pt["support"]) > 0
+    entry = pt.get("entry", {})
+    assert isinstance(entry.get("low"), (int, float))
+    assert isinstance(entry.get("high"), (int, float))
+    stop = pt.get("stopLoss", {})
+    assert isinstance(stop.get("price"), (int, float))
+
+    # Verdict has action from allowed set
+    verdict = result["verdict"]
+    assert verdict.get("action") in {
+        "Strong Buy", "Tactical Buy", "Hold", "Profit-Taking", "Stop-Loss"
+    }
+    assert isinstance(verdict.get("rationale"), str) and len(verdict["rationale"]) > 10
+    assert isinstance(verdict.get("strategy"), str) and len(verdict["strategy"]) > 10
