@@ -77,6 +77,26 @@ SP500=(
 )
 put_watchlist "spy500" "S&P 500" "$(tickers_list "${SP500[@]}")"
 
+# ── Nasdaq 100 (QQQ) ─────────────────────────────────────────────────────────
+# Approximate composition as of early 2026; reconstituted annually by Nasdaq.
+QQQ=(
+  AAPL ABNB ADBE ADI ADP ADSK AEP AMAT AMD AMGN AMZN ANSS ARM ASML AVGO AXON
+  AZN BIIB BKNG CDNS CEG CHKP CMCSA COST CPRT CRWD CSCO CTAS CTSH DDOG DLTR
+  DXCM EA EXC FAST FANG FTNT GEHC GILD GOOG GOOGL HON IDXX ILMN INTC INTU
+  ISRG KDP KLAC LRCX LULU MAR MCHP MDLZ MELI META MNST MRNA MRVL MSFT MSTR
+  MU NFLX NVDA NXPI ODFL ON ORLY PANW PAYX PCAR PDD PYPL QCOM REGN ROST SBUX
+  SMCI SNPS TEAM TMUS TSLA TTD TTWO VRSK VRTX WDAY XEL ZM ZS
+)
+put_watchlist "qqq" "Nasdaq 100 (QQQ)" "$(tickers_list "${QQQ[@]}")"
+
+# ── DJIA ─────────────────────────────────────────────────────────────────────
+# Dow Jones Industrial Average — 30 components as of early 2026.
+DJIA=(
+  AAPL AMGN AMZN AXP BA CAT CRM CSCO CVX DIS DOW GS HD HON IBM JNJ JPM KO
+  MCD MMM MRK MSFT NKE NVDA PG SHW TRV UNH V WMT
+)
+put_watchlist "djia" "DJIA" "$(tickers_list "${DJIA[@]}")"
+
 # ── FANG+ ────────────────────────────────────────────────────────────────────
 put_watchlist "fang" "FANG+" "$(tickers_list META AMZN NFLX GOOGL MSFT NVDA AAPL TSLA)"
 
@@ -84,4 +104,4 @@ put_watchlist "fang" "FANG+" "$(tickers_list META AMZN NFLX GOOGL MSFT NVDA AAPL
 put_watchlist "laoli" "Lao Li" "$(tickers_list TSLA NVDA AMD GOOG AAPL MSFT COST DIS BRK.B SOFI V ORCL NFLX PLTR)"
 
 echo ""
-echo "Done. Seeded 3 watchlists into $TABLE."
+echo "Done. Seeded 5 watchlists into $TABLE."

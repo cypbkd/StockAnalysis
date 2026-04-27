@@ -197,6 +197,14 @@ COMPANY_NAMES: Dict[str, str] = {
     "FRT": "Federal Realty", "CPT": "Camden Property Trust",
     "KIM": "Kimco Realty", "HST": "Host Hotels & Resorts",
     "WY": "Weyerhaeuser", "DOC": "Healthpeak Properties",
+    # Nasdaq-100 / QQQ additions
+    "ABNB": "Airbnb", "ARM": "Arm Holdings", "ASML": "ASML Holding",
+    "AZN": "AstraZeneca", "CHKP": "Check Point Software",
+    "CRWD": "CrowdStrike", "DDOG": "Datadog", "ILMN": "Illumina",
+    "MELI": "MercadoLibre", "MRVL": "Marvell Technology",
+    "MSTR": "MicroStrategy", "PDD": "PDD Holdings",
+    "TEAM": "Atlassian", "TTD": "The Trade Desk",
+    "WDAY": "Workday", "ZM": "Zoom Video", "ZS": "Zscaler",
     # Personal portfolio / watchlist extras
     "SOFI": "SoFi Technologies", "PLTR": "Palantir",
 }
