@@ -81,7 +81,87 @@
       "lastPrice": 347.81,
       "changePercent": 13.91,
       "reason": "close 347.81 >= 347.81; volume_ratio 2.11 >= 1.50",
-      "status": "high priority"
+      "status": "high priority",
+      "detailAnalysis": {
+        "summary": "AMD is experiencing a powerful momentum breakout driven by AI accelerator demand and strong institutional buying. The stock surged +13.91% on elevated volume (2.11x average), clearing its 52-week high and triggering five high-conviction rules simultaneously \u2014 the highest conviction signal in today's run.",
+        "rules": [
+          {
+            "name": "ATH Breakout",
+            "priority": "High",
+            "status": "triggered",
+            "details": "Close $347.81 matched 52-Week High $347.81 on volume ratio 2.11x >= 1.5x threshold"
+          },
+          {
+            "name": "High-Volume Momentum Day",
+            "priority": "High",
+            "status": "triggered",
+            "details": "Volume ratio 2.11x >= 2.0x; RSI 68.4 >= 55 \u2014 strong momentum confirmed"
+          },
+          {
+            "name": "Strong Trending Day",
+            "priority": "High",
+            "status": "triggered",
+            "details": "Daily change +13.91% >= 3% threshold; closed above EMA-20 and SMA-20"
+          },
+          {
+            "name": "Pivot R1 Breakout",
+            "priority": "High",
+            "status": "triggered",
+            "details": "Price surpassed Pivot R1 level on elevated volume \u2014 bullish follow-through confirmed"
+          },
+          {
+            "name": "TD Sequential Sell Setup",
+            "priority": "High",
+            "status": "warning",
+            "details": "TD Sell Setup count reached exhaustion level \u2014 potential near-term consolidation or reversal risk"
+          }
+        ],
+        "priceTargets": {
+          "resistance": [
+            {
+              "label": "R1 (ATH / Pivot)",
+              "price": 347.81,
+              "note": "Current 52-week high \u2014 immediate overhead"
+            },
+            {
+              "label": "R2 (Pivot Extended)",
+              "price": 365.2,
+              "note": "Extrapolated from pivot range \u2014 next major target"
+            }
+          ],
+          "support": [
+            {
+              "label": "S1 (Pivot)",
+              "price": 318.5,
+              "note": "First pivot support \u2014 key retest zone"
+            },
+            {
+              "label": "EMA-20",
+              "price": 298.4,
+              "note": "Short-term trend anchor \u2014 must hold on any pullback"
+            },
+            {
+              "label": "SMA-50",
+              "price": 270.2,
+              "note": "Medium-term trend floor"
+            }
+          ],
+          "entry": {
+            "low": 318.0,
+            "high": 330.0,
+            "note": "Wait for a pullback to S1 Pivot zone before adding; don't chase above current ATH"
+          },
+          "stopLoss": {
+            "price": 290.0,
+            "note": "Below EMA-20 \u2014 a close here invalidates the breakout thesis and signals distribution"
+          }
+        },
+        "verdict": {
+          "action": "Hold / Tactical Buy on Pullback",
+          "rationale": "Bullish confluence between ATH Breakout, High-Volume Momentum Day, and Strong Trending Day signals institutional accumulation. However, the TD Sequential Sell Setup warns of potential exhaustion \u2014 this is a 5-rule day that warrants respect but not blind chasing.",
+          "strategy": "Do not chase the breakout above $347. Wait for a consolidation or pullback to the $318-$330 S1 Pivot zone. If the dip holds with declining volume, that is the optimal entry for a continuation trade. Hard stop below $290 (EMA-20). If volume surges above 3x average on any up-day, the breakout may extend toward R2 at $365."
+        }
+      }
     },
     {
       "symbol": "AFL",

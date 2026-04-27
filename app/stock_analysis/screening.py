@@ -229,7 +229,29 @@ def _result_to_signal(result: ScreeningResult) -> Dict[str, Any]:
         "changePercent": metrics.get("change_percent", 0.0),
         "reason": "; ".join(reasons) if reasons else "Matched the active rules.",
         "status": _result_status(result, metrics.get("match_count", 1)),
+        "technicalData": _extract_technical_data(metrics),
     }
+
+
+def _extract_technical_data(metrics: Mapping[str, Any]) -> Dict[str, Any]:
+    """Key technical metrics stored in the signal for on-demand AI analysis."""
+    fields = {
+        "volumeRatio": "volume_ratio",
+        "rsi14": "rsi_14",
+        "ema20": "ema_20",
+        "sma20": "sma_20",
+        "sma50": "sma_50",
+        "high52w": "high_52w",
+        "low52w": "low_52w",
+        "pivotR1": "pivot_r1",
+        "pivotR2": "pivot_r2",
+        "pivotS1": "pivot_s1",
+        "pivotS2": "pivot_s2",
+        "earningsDate": "earnings_date",
+        "earningsInDays": "earnings_in_days",
+        "earningsTiming": "earnings_timing",
+    }
+    return {camel: metrics[snake] for camel, snake in fields.items() if metrics.get(snake) is not None}
 
 
 def _result_status(result: ScreeningResult, match_count: int = 1) -> str:

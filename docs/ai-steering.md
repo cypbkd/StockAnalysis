@@ -30,6 +30,7 @@ app/                        Python 3.11 — Lambda handlers + domain logic
     earnings.py             Parallel yfinance calendar fetch → {days, date, timing} per ticker
     rules.py                CanonicalRule, RuleCondition, SUPPORTED_FIELDS
     news.py                 Yahoo Finance RSS fetch + Gemini summarization (generate_news_summary)
+    details.py              Gemini per-ticker trading brief (generate_ticker_analysis) → detailAnalysis JSON
     screening.py            DeterministicScreeningEngine, build_nightly_report
     cli.py                  Local CLI entry point
     handlers/
@@ -99,8 +100,19 @@ web/tests/                  JS unit tests (node:test)
                 (no cap on count; each entry includes date, weekday, timing fields)
               fetches Yahoo Finance RSS headlines for top 8 high-priority tickers
               calls Gemini (gemini-2.5-flash, thinking disabled) → 6-8 sentence newsSummary
+              each signal now includes technicalData (volumeRatio, rsi14, ema20, sma50,
+                high52w, low52w, pivotR1/R2/S1/S2, earningsDate/InDays/Timing) for on-demand analysis
               writes reports/latest/report.json + reports/runs/YYYY-MM-DD/report.json
               triggers CloudFront invalidation on /reports/latest/report.json
+
+On demand   AnalysisFunction (Lambda Function URL — called by the browser)
+              triggered when the user opens a ticker detail page (hash routing: #symbol/TICKER)
+              main.js reads config.json (written to S3 by deploy script) to get the Function URL
+              Lambda checks S3 cache at analyses/{run_date}/{ticker}.json
+              on cache miss: reads technicalData from report JSON, calls Gemini (gemini-2.5-flash),
+                caches result to S3 so repeat views are free
+              returns { summary, rules, priceTargets, verdict } JSON with CORS headers
+              frontend replaces the "Generating trading brief…" placeholder with the rendered analysis
 ```
 
 ### S3 layout
@@ -148,7 +160,7 @@ Rules are hardcoded in `app/stock_analysis/data.py → RULE_CONFIGS`. DynamoDB-b
 ## Web Dashboard
 
 - **URL routing**: `/?` loads latest; `/?date=YYYY-MM-DD` loads `reports/runs/YYYY-MM-DD/report.json`; `/#symbol/TICKER` opens the per-symbol detail page (hash routing, no page reload)
-- **Per-symbol detail pages**: clicking a ticker in any signal card navigates to `#symbol/TICKER`. The detail page shows: symbol header (price, change %, status, watchlists), parsed trigger-condition chips from `signal.reason`, and one rule card per matched rule name (description + natural-language statement looked up from `ruleSets[]`). A "← Back to Report" link clears the hash.
+- **Per-symbol detail pages**: clicking a ticker in any signal card navigates to `#symbol/TICKER`. The detail page shows: symbol header (price, change %, status, watchlists), parsed trigger-condition chips from `signal.reason`, one rule card per matched rule name, and an **AI Trading Brief** section. The Trading Brief is lazy-loaded: `main.js` reads `config.json` to get the `AnalysisFunction` URL, calls it with `?ticker=TICKER&date=YYYY-MM-DD`, and patches the DOM placeholder once the analysis arrives. A "← Back to Report" link clears the hash.
 - **History rail**: aggregator writes `/?date=YYYY-MM-DD` hrefs into `reportHistory` in the report JSON; the renderer renders them as sidebar links
 - **Fidelity links**: on the per-symbol detail page a "Fidelity chart ↗" pill links out; earnings card tickers also link to Fidelity. Signal card ticker symbols now navigate to the detail page instead.
 - **Design**: Newsprint theme — Playfair Display headlines, Lora body, JetBrains Mono metrics, 4×4px SVG dot grain background, collapsed-border grid, red accent `#cc0000`
@@ -350,6 +362,7 @@ Three alarms fire into this topic:
 - **DynamoDB-backed watchlists** — `WATCHLISTS` constant removed from `data.py`; replaced by `load_watchlists(table_name)` which scans the `{ENV_NAME}-watchlists` table (version="latest" items). Coordinator calls it at runtime. Seed with `scripts/seed-watchlists.sh`. New watchlists no longer need a redeploy.
 - **QQQ + DJIA watchlists** added to `seed-watchlists.sh` (`qqq` ≈ 90 Nasdaq-100 tickers; `djia` = 30 DJIA tickers); 17 new company name entries added to `COMPANY_NAMES` in `data.py` (ARM, ASML, AZN, CHKP, CRWD, DDOG, ILMN, MELI, MRVL, MSTR, PDD, TEAM, TTD, WDAY, ZM, ZS, and ABNB)
 - **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for top 8 high-priority tickers, calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
+- **On-demand ticker analysis** (`details.py` + `handlers/analysis.py`): Lambda Function URL (open CORS) called by the browser when user opens a ticker detail page; checks S3 cache at `analyses/{date}/{ticker}.json`; on miss calls Gemini (`gemini-2.5-flash`, JSON mode, 2000 tokens) → `{ summary, rules, priceTargets, verdict }` and caches to S3; `config.json` (written to S3 by deploy script from CloudFormation output) tells the frontend the Function URL; local dev server serves mock config + mock analysis endpoint; each signal now includes `technicalData` (14 metrics) so the analysis Lambda can build the prompt without reading chunk files
 - **Gemini API key** in AWS Secrets Manager as `stock-analysis/gemini-api-key`; managed via `scripts/manage-gemini-key.sh`; local dev uses `GEMINI_API_KEY` env var
 - **Earnings API key** in AWS Secrets Manager as `stock-analysis/earnings-api-key`; local dev uses `EARNINGS_API_KEY`. Workers use yfinance for dates, then call Earnings API only for the distinct dates yfinance returned. Daily Earnings API responses are cached in S3 at `raw/earnings-api/date=YYYY-MM-DD/calendar.json` to stay within the free-tier limit.
 - **Lambda layer `:3`** (`arn:aws:lambda:us-west-2:841425310647:layer:dev-stock-analysis-deps:3`) — swapped `anthropic` for `google-genai>=1.0`; uploaded via S3 (zip ~52 MB)
