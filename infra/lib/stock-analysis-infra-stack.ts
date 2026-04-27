@@ -216,7 +216,7 @@ export class StockAnalysisInfraStack extends Stack {
       authType: lambda.FunctionUrlAuthType.NONE,
       cors: {
         allowedOrigins: ["*"],
-        allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.ALL],
+        allowedMethods: [lambda.HttpMethod.ALL],
         allowedHeaders: ["Content-Type"],
         maxAge: Duration.hours(1),
       },
