@@ -274,10 +274,10 @@ test('renderSymbolDetail parses semicolon-separated reason into individual condi
   assert.match(html, /condition-item/);
 });
 
-test('renderSymbolDetail includes Fidelity chart link for the symbol', () => {
+test('renderSymbolDetail includes Yahoo Finance chart link for the symbol', () => {
   const html = renderSymbolDetail(detailReport, 'NVDA');
 
-  assert.match(html, /digital\.fidelity\.com[^"]*NVDA/);
+  assert.match(html, /finance\.yahoo\.com\/quote\/NVDA/);
   assert.match(html, /fidelity-link/);
 });
 

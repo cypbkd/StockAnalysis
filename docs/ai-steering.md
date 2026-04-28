@@ -162,7 +162,7 @@ Rules are hardcoded in `app/stock_analysis/data.py → RULE_CONFIGS`. DynamoDB-b
 - **URL routing**: `/?` loads latest; `/?date=YYYY-MM-DD` loads `reports/runs/YYYY-MM-DD/report.json`; `/#symbol/TICKER` opens the per-symbol detail page (hash routing, no page reload)
 - **Per-symbol detail pages**: clicking a ticker in any signal card navigates to `#symbol/TICKER`. The detail page shows: symbol header (price, change %, status, watchlists), parsed trigger-condition chips from `signal.reason`, one rule card per matched rule name, and an **AI Trading Brief** section. The Trading Brief is lazy-loaded: `main.js` reads `config.json` to get the `AnalysisFunction` URL, calls it with `?ticker=TICKER&date=YYYY-MM-DD`, and patches the DOM placeholder once the analysis arrives. A "← Back to Report" link clears the hash.
 - **History rail**: aggregator writes `/?date=YYYY-MM-DD` hrefs into `reportHistory` in the report JSON; the renderer renders them as sidebar links
-- **Fidelity links**: on the per-symbol detail page a "Fidelity chart ↗" pill links out; earnings card tickers also link to Fidelity. Signal card ticker symbols now navigate to the detail page instead.
+- **Yahoo Finance links**: on the per-symbol detail page a "Yahoo Finance ↗" pill links to `https://finance.yahoo.com/quote/{TICKER}/`; earnings card tickers also link there. Options idea card tickers link to the Yahoo Finance options page with the primary strike pre-selected: `https://finance.yahoo.com/quote/{TICKER}/options/?straddle=true&strike={STRIKE}`. Signal card ticker symbols navigate to the detail page instead.
 - **Design**: Newsprint theme — Playfair Display headlines, Lora body, JetBrains Mono metrics, 4×4px SVG dot grain background, collapsed-border grid, red accent `#cc0000`
 - **No bundler**: plain ES modules, served directly from S3/CloudFront
 - **Page title / H1**: derived dynamically from `reportDate` — format is `"<Month D, YYYY> Analysis Report"`. Do not use the `reportLabel` field for display; it is kept in the JSON but ignored by the renderer.
@@ -344,7 +344,7 @@ Three alarms fire into this topic:
 - Real earnings_watch section (built from live chunk data, not hardcoded)
 - CloudFront auto-invalidation after each nightly report publish
 - Newsprint static dashboard — live at https://d2r08g384yeqpo.cloudfront.net
-- Fidelity research links on all ticker symbols (signal, options, earnings cards)
+- Yahoo Finance links on all ticker symbols (quote page for signal/earnings cards, options page with strike for options cards)
 - **14 active rules**: Bullish MA Stack, Golden Cross, Dead Cross, ATH Breakout, Near-ATH Consolidation, Oversold Dip, Pre-Earnings Momentum, High-Volume Day, Strong Trending Day, Near 52-Week Support, Pivot S1 Bounce, Pivot R1 Breakout, TD Sequential Buy (神奇九转), TD Sequential Sell
 - Ticker deduplication in coordinator — each ticker fetched and screened exactly once; all rules applied in one pass per ticker
 - Signal `ruleNames[]` array — tags show the rule name (e.g. "Bullish MA Stack") not the watchlist display name
@@ -356,7 +356,7 @@ Three alarms fire into this topic:
 - CloudWatch alarms for coordinator errors, aggregator errors, DLQ depth
 - Full test suite: Python pytest (84), CDK Jest (15), JS node:test (39) = **138 tests**
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
-- **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Fidelity chart link; back navigation
+- **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Yahoo Finance chart link; back navigation
 - `COMPANY_NAMES` expanded to ~300 entries covering full S&P 500 + QQQ + DJIA + all watchlist tickers (was ~70 with duplicate keys)
 - `WATCHLISTS` and `_SP500_TICKERS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there (both subsequently removed in favour of DynamoDB)
 - **DynamoDB-backed watchlists** — `WATCHLISTS` constant removed from `data.py`; replaced by `load_watchlists(table_name)` which scans the `{ENV_NAME}-watchlists` table (version="latest" items). Coordinator calls it at runtime. Seed with `scripts/seed-watchlists.sh`. New watchlists no longer need a redeploy.

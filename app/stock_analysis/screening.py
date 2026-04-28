@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timezone as _utc_tz
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from stock_analysis.rules import CanonicalRule, RuleCondition
 
@@ -46,6 +46,7 @@ class OptionIdea:
     expiration: str
     score: float
     reason: str
+    strike: Optional[float] = None
     highlighted: bool = False
 
 
@@ -199,6 +200,7 @@ def build_nightly_report(
                 "expiration": idea.expiration,
                 "score": round(idea.score, 1),
                 "reason": idea.reason,
+                "strike": idea.strike,
                 "highlighted": idea.highlighted,
             }
             for idea in option_ideas

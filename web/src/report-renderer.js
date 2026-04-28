@@ -62,8 +62,13 @@ function formatTimezone(tz) {
   }
 }
 
-function fidelityUrl(symbol) {
-  return `https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol=${encodeURIComponent(symbol)}`;
+function yahooUrl(symbol) {
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/`;
+}
+
+function yahooOptionsUrl(symbol, strike) {
+  const base = `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/options/`;
+  return strike != null ? `${base}?straddle=true&strike=${encodeURIComponent(strike)}` : base;
 }
 
 function renderList(items, emptyMessage, renderItem) {
@@ -167,7 +172,7 @@ function renderOptionCard(signal) {
       <div class="card-topline">
         <div>
           <span class="card-kicker">Options Desk</span>${topPickBadge}
-          <h3><a href="${fidelityUrl(signal.symbol)}" target="_blank" rel="noopener noreferrer">${escapeHtml(signal.symbol)}</a> <span>${escapeHtml(signal.strategy)}</span></h3>
+          <h3><a href="${yahooOptionsUrl(signal.symbol, signal.strike)}" target="_blank" rel="noopener noreferrer">${escapeHtml(signal.symbol)}</a> <span>${escapeHtml(signal.strategy)}</span></h3>
           <p>Expires ${escapeHtml(signal.expiration)}</p>
         </div>
       </div>
@@ -232,7 +237,7 @@ function renderEarningsCalendar(earningsWatch, reportDate) {
 
     const renderTickerList = items => items.map(e => `
       <li class="ec-ticker-item ${priorityClass(e.priority)}">
-        <a href="${fidelityUrl(e.symbol)}" target="_blank" rel="noopener noreferrer" class="ec-symbol">${escapeHtml(e.symbol)}</a>
+        <a href="${yahooUrl(e.symbol)}" target="_blank" rel="noopener noreferrer" class="ec-symbol">${escapeHtml(e.symbol)}</a>
         ${e.companyName && e.companyName !== e.symbol ? `<span class="ec-company">${escapeHtml(e.companyName)}</span>` : ''}
       </li>
     `).join('');
@@ -541,7 +546,7 @@ export function renderSymbolDetail(report, symbol) {
           </div>
           <div class="detail-watchlists">
             ${(signal.watchlists ?? []).map(w => `<span class="pill pill-soft">${escapeHtml(w)}</span>`).join('')}
-            <a href="${fidelityUrl(symbol)}" target="_blank" rel="noopener noreferrer" class="pill fidelity-link">Fidelity chart ↗</a>
+            <a href="${yahooUrl(symbol)}" target="_blank" rel="noopener noreferrer" class="pill fidelity-link">Yahoo Finance ↗</a>
           </div>
         </header>
 

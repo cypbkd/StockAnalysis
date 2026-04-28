@@ -195,6 +195,7 @@ def _analyze_bullish(symbol: str, puts, close: float, metrics: dict, exp: str,
             f"Stock ${close:.2f}, RSI {rsi:.0f}, day {chg:+.1f}%, "
             f"rules matched {match_count}"
         ),
+        strike=put_strike,
         highlighted=False,
     )
     return idea, comp
@@ -247,6 +248,7 @@ def _analyze_bearish(symbol: str, puts, close: float, metrics: dict, exp: str,
             f"Stock ${close:.2f}, RSI {rsi:.0f}, day {chg:+.1f}%, "
             f"rules matched {match_count}"
         ),
+        strike=buy_strike,
         highlighted=False,
     )
     return idea, comp
