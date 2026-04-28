@@ -17,3 +17,6 @@ where = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "integration: live integration tests requiring network access (deselect with -m 'not integration')",
+]

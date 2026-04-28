@@ -46,6 +46,7 @@ class OptionIdea:
     expiration: str
     score: float
     reason: str
+    highlighted: bool = False
 
 
 class DeterministicScreeningEngine:
@@ -198,6 +199,7 @@ def build_nightly_report(
                 "expiration": idea.expiration,
                 "score": round(idea.score, 1),
                 "reason": idea.reason,
+                "highlighted": idea.highlighted,
             }
             for idea in option_ideas
         ],

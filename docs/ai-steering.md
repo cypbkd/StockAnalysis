@@ -354,7 +354,7 @@ Three alarms fire into this topic:
 - `scripts/run-aggregator.sh` — invoke aggregator only (skips coordinator + workers); useful after news/config fixes
 - Historical report navigation via `/?date=YYYY-MM-DD`
 - CloudWatch alarms for coordinator errors, aggregator errors, DLQ depth
-- Full test suite: Python pytest (28), CDK Jest (14), JS node:test (28) = **70 tests**
+- Full test suite: Python pytest (84), CDK Jest (15), JS node:test (39) = **138 tests**
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
 - **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Fidelity chart link; back navigation
 - `COMPANY_NAMES` expanded to ~300 entries covering full S&P 500 + QQQ + DJIA + all watchlist tickers (was ~70 with duplicate keys)
@@ -363,6 +363,8 @@ Three alarms fire into this topic:
 - **QQQ + DJIA watchlists** added to `seed-watchlists.sh` (`qqq` ≈ 90 Nasdaq-100 tickers; `djia` = 30 DJIA tickers); 17 new company name entries added to `COMPANY_NAMES` in `data.py` (ARM, ASML, AZN, CHKP, CRWD, DDOG, ILMN, MELI, MRVL, MSTR, PDD, TEAM, TTD, WDAY, ZM, ZS, and ABNB)
 - **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for top 8 high-priority tickers, calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
 - **On-demand ticker analysis** (`details.py` + `handlers/analysis.py`): Lambda Function URL (open CORS) called by the browser when user opens a ticker detail page; checks S3 cache at `analyses/{date}/{ticker}.json`; on miss calls Gemini (`gemini-2.5-flash`, JSON mode, 2000 tokens) → `{ summary, rules, priceTargets, verdict }` and caches to S3; `config.json` (written to S3 by deploy script from CloudFormation output) tells the frontend the Function URL; local dev server serves mock config + mock analysis endpoint; each signal now includes `technicalData` (14 metrics) so the analysis Lambda can build the prompt without reading chunk files
+- **Real options chain analysis** (`options.py`): replaces the previous naive strategy assignment (day change ≥ 0 → "Bullish call spread") with live yfinance option chain fetches. `build_options_ideas()` now runs against **all matched tickers** (no fixed universe), taking the top `max_candidates=40` by match_count, fetching real chains for each, and returning up to `max_ideas=10`. Picks the nearest ~21 DTE expiration, selects a specific strike (~5% OTM), and returns `OptionIdea` objects with bid/ask mid, IV%, open interest, volume, and breakeven/net-debit info. Bullish signals → cash-secured put; bearish signals → bear put spread. Min OI filter of 50 contracts ensures liquidity. Falls back gracefully if yfinance is unavailable.
+- **Composite scoring + Top Pick highlighting**: each `OptionIdea` now carries a `highlighted: bool` field. The composite score = options quality (60%) + screening strength (40%). Options quality factors: IV sweet-spot (25–65% → 25 pts), OI depth log-scale (25 pts), RSI alignment (20 pts), price vs SMA-20 (20 pts), OTM cushion (10 pts). Screening strength = match_count / 14 rules. Top 3 ideas by composite score get `highlighted=True`, which the frontend renders with a red left border + "★ Top Pick" badge (`options-highlight` CSS class, `pill-alert` pill).
 - **Gemini API key** in AWS Secrets Manager as `stock-analysis/gemini-api-key`; managed via `scripts/manage-gemini-key.sh`; local dev uses `GEMINI_API_KEY` env var
 - **Earnings API key** in AWS Secrets Manager as `stock-analysis/earnings-api-key`; local dev uses `EARNINGS_API_KEY`. Workers use yfinance for dates, then call Earnings API only for the distinct dates yfinance returned. Daily Earnings API responses are cached in S3 at `raw/earnings-api/date=YYYY-MM-DD/calendar.json` to stay within the free-tier limit.
 - **Lambda layer `:3`** (`arn:aws:lambda:us-west-2:841425310647:layer:dev-stock-analysis-deps:3`) — swapped `anthropic` for `google-genai>=1.0`; uploaded via S3 (zip ~52 MB)
@@ -379,4 +381,5 @@ Three alarms fire into this topic:
 - Direct broker execution
 - AI rule authoring (Phase 3 — translate natural language → CanonicalRule via Gemini API)
 - Automatic strategy backtesting
-- Options data provider (placeholder interfaces exist)
+- Options greeks (delta/gamma/theta/vega) — yfinance doesn't expose them; would need Tradier or Schwab API
+- IV rank/percentile — requires historical IV data not available from yfinance free tier

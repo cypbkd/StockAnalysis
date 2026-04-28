@@ -6379,31 +6379,35 @@
   "optionsSignals": [
     {
       "symbol": "AAPL",
-      "strategy": "Cash-secured put",
-      "expiration": "2026-05-01",
-      "score": 100,
-      "reason": "Price $271.06 above 20DMA $261.40, RSI 59.7, day chg -0.9%"
-    },
-    {
-      "symbol": "GOOGL",
-      "strategy": "Bullish call spread",
-      "expiration": "2026-05-01",
-      "score": 100,
-      "reason": "Price $344.40 above 20DMA $317.42, RSI 69.0, day chg +1.6%"
+      "strategy": "Cash-secured put — sell $257 put",
+      "expiration": "2026-05-16",
+      "score": 85,
+      "highlighted": true,
+      "reason": "Sell $257 put exp 2026-05-16 | Mid $2.45, IV 42%, OI 1,823, Vol 312 | Breakeven $254.55 (5.1% OTM) | Stock $271.06, RSI 60, day -0.9%, rules matched 6"
     },
     {
       "symbol": "META",
-      "strategy": "Bullish call spread",
-      "expiration": "2026-05-01",
-      "score": 100,
-      "reason": "Price $675.03 above 20DMA $624.47, RSI 61.5, day chg +2.4%"
+      "strategy": "Cash-secured put — sell $641 put",
+      "expiration": "2026-05-16",
+      "score": 80,
+      "highlighted": true,
+      "reason": "Sell $641 put exp 2026-05-16 | Mid $8.10, IV 38%, OI 2,104, Vol 445 | Breakeven $632.90 (5.0% OTM) | Stock $675.03, RSI 62, day +2.4%, rules matched 5"
     },
     {
       "symbol": "MSFT",
-      "strategy": "Bullish call spread",
-      "expiration": "2026-05-01",
-      "score": 100,
-      "reason": "Price $424.62 above 20DMA $391.97, RSI 63.5, day chg +2.1%"
+      "strategy": "Cash-secured put — sell $403 put",
+      "expiration": "2026-05-16",
+      "score": 78,
+      "highlighted": true,
+      "reason": "Sell $403 put exp 2026-05-16 | Mid $3.20, IV 35%, OI 1,456, Vol 289 | Breakeven $399.80 (5.1% OTM) | Stock $424.62, RSI 64, day +2.1%, rules matched 5"
+    },
+    {
+      "symbol": "GOOGL",
+      "strategy": "Cash-secured put — sell $327 put",
+      "expiration": "2026-05-16",
+      "score": 72,
+      "highlighted": false,
+      "reason": "Sell $327 put exp 2026-05-16 | Mid $4.05, IV 40%, OI 987, Vol 201 | Breakeven $322.95 (5.1% OTM) | Stock $344.40, RSI 69, day +1.6%, rules matched 4"
     }
   ],
   "earningsWatch": [
