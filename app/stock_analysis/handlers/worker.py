@@ -36,7 +36,7 @@ def handler(event: dict, context: object) -> dict:
         market_data = fetch_market_data(tickers)
         logger.info("Fetched data for %d/%d tickers", len(market_data), len(tickers))
 
-        earnings = fetch_earnings_dates(list(market_data.keys()))
+        earnings = fetch_earnings_dates(list(market_data.keys()), run_date=run_date)
         for ticker, info in earnings.items():
             if ticker in market_data:
                 market_data[ticker]["earnings_in_days"] = info["days"]

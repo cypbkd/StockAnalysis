@@ -19,12 +19,16 @@ _EARNINGS_API_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; StockAnalysis/1
 _api_key_cache: str = ""
 
 
-def fetch_earnings_dates(tickers: List[str], max_workers: int = 10) -> Dict[str, Dict]:
+def fetch_earnings_dates(tickers: List[str], run_date: str = None, max_workers: int = 10) -> Dict[str, Dict]:
     """
     Return a dict mapping ticker → {"days": int, "date": "YYYY-MM-DD", "timing": str}.
     Tickers with no upcoming earnings data or errors are excluded from the result.
+
+    run_date: the trading day being processed (YYYY-MM-DD). If omitted, falls back to
+    date.today(). Always pass run_date from the worker so earnings_in_days is relative
+    to the trading day, not the UTC wall clock (which is already +1 day after 5 PM PT).
     """
-    today = date.today()
+    today = date.fromisoformat(run_date) if run_date else date.today()
     raw_results: Dict[str, Dict] = {}
 
     def _get_info(ticker: str) -> tuple:

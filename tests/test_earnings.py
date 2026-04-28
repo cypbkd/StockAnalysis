@@ -66,6 +66,31 @@ def test_fetch_earnings_dates_uses_earnings_api_timing_when_dates_match(monkeypa
     assert result["AAPL"] == {"days": 2, "date": "2026-04-27", "timing": "After Close"}
 
 
+def test_fetch_earnings_dates_run_date_overrides_today(monkeypatch):
+    """run_date must be used as the reference instead of date.today() so that
+    earnings_in_days is relative to the trading day, not the UTC wall clock
+    (which is already +1 day after 5 PM PT when nightly workers execute)."""
+    fake_yfinance = SimpleNamespace()
+    fake_ticker = MagicMock()
+    # Ticker reports on Tuesday April 28 — 1 day away from trading day April 27
+    fake_ticker.calendar = {"Earnings Date": [datetime(2026, 4, 28, 0, 0)]}
+    fake_yfinance.Ticker = MagicMock(return_value=fake_ticker)
+
+    monkeypatch.setattr(
+        earnings,
+        "fetch_earnings_api_calendar_dates",
+        lambda dates: {},
+    )
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yfinance)
+
+    # Simulate worker running after midnight UTC (April 28) for trading day April 27
+    result = earnings.fetch_earnings_dates(["AAPL"], run_date="2026-04-27", max_workers=1)
+
+    # days should be 1 (relative to trading day April 27), not 0 (UTC wall clock April 28)
+    assert result["AAPL"]["days"] == 1
+    assert result["AAPL"]["date"] == "2026-04-28"
+
+
 def test_fetch_earnings_dates_only_fetches_timing_for_actual_earnings_dates(monkeypatch):
     class FixedDate(date):
         @classmethod
