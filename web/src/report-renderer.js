@@ -482,14 +482,16 @@ export function renderSymbolDetail(report, symbol) {
     const rs = ruleSetsByName[name];
     return `
       <article class="surface-card rule-explanation-card">
-        <div class="rule-explanation-header">
-          <span class="card-kicker">Rule</span>
-          <h3>${escapeHtml(name)}</h3>
-        </div>
-        ${rs ? `
-          <p class="body-copy">${escapeHtml(rs.description)}</p>
-          <p class="rule-natural-language">${escapeHtml(rs.naturalLanguage)}</p>
-        ` : ''}
+        <details>
+          <summary class="rule-explanation-header">
+            <span class="card-kicker">Rule</span>
+            <h3>${escapeHtml(name)}</h3>
+          </summary>
+          ${rs ? `
+            <p class="body-copy">${escapeHtml(rs.description)}</p>
+            <p class="rule-natural-language">${escapeHtml(rs.naturalLanguage)}</p>
+          ` : ''}
+        </details>
       </article>
     `;
   }).join('');
@@ -539,6 +541,16 @@ export function renderSymbolDetail(report, symbol) {
 
         ${conditionsHtml}
 
+        <div id="ai-analysis-placeholder" class="ai-analysis-loading" aria-live="polite" aria-label="Loading trading brief">
+          <div class="ai-analysis-section">
+            <div class="section-heading">
+              <span class="section-label">AI Analysis</span>
+              <h2>Trading Brief</h2>
+            </div>
+            <p class="ai-loading-message">Generating trading brief…</p>
+          </div>
+        </div>
+
         <section class="detail-rules-section">
           <div class="section-heading">
             <span class="section-label">Triggered Rules</span>
@@ -549,16 +561,6 @@ export function renderSymbolDetail(report, symbol) {
             ${ruleCards || '<p class="empty-state">No rule details available.</p>'}
           </div>
         </section>
-
-        <div id="ai-analysis-placeholder" class="ai-analysis-loading" aria-live="polite" aria-label="Loading trading brief">
-          <div class="ai-analysis-section">
-            <div class="section-heading">
-              <span class="section-label">AI Analysis</span>
-              <h2>Trading Brief</h2>
-            </div>
-            <p class="ai-loading-message">Generating trading brief…</p>
-          </div>
-        </div>
 
         <div class="ornament-divider" aria-hidden="true">✧ ✧ ✧</div>
       </main>
