@@ -10,7 +10,9 @@ Invoked via Lambda Function URL:
 Response body: { summary, rules, priceTargets, verdict }
 Errors:        { error: "..." }
 
-CORS headers are always present so the browser can call this cross-origin.
+CORS is handled by the Lambda Function URL configuration — do NOT set
+Access-Control-Allow-Origin in the handler response or the browser will see
+duplicate header values and block the request.
 """
 import json
 import logging
@@ -23,10 +25,7 @@ from stock_analysis.details import generate_ticker_analysis
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-_CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+_RESPONSE_HEADERS = {
     "Content-Type": "application/json",
 }
 
@@ -34,9 +33,9 @@ _CORS_HEADERS = {
 def handler(event: dict, context: object) -> dict:
     method = event.get("requestContext", {}).get("http", {}).get("method", "GET").upper()
 
-    # CORS preflight
+    # CORS preflight is handled by the Function URL — return 200 so it passes through
     if method == "OPTIONS":
-        return {"statusCode": 200, "headers": _CORS_HEADERS, "body": ""}
+        return {"statusCode": 200, "headers": _RESPONSE_HEADERS, "body": ""}
 
     params = event.get("queryStringParameters") or {}
     ticker = (params.get("ticker") or "").upper().strip()
@@ -149,6 +148,6 @@ def _find_signal_data(s3, bucket: str, report_date: str, ticker: str):
 def _response(status: int, body: dict) -> dict:
     return {
         "statusCode": status,
-        "headers": _CORS_HEADERS,
+        "headers": _RESPONSE_HEADERS,
         "body": json.dumps(body),
     }
