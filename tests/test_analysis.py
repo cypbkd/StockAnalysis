@@ -149,14 +149,16 @@ class TestAnalysisHandler:
             response = m.handler(_make_event(), None)
         assert response["statusCode"] == 503
 
-    def test_cors_headers_always_present(self, monkeypatch):
+    def test_cors_header_not_in_response(self, monkeypatch):
+        # CORS is handled by the Lambda Function URL config, not the handler.
+        # Having it in both places produces duplicate headers that browsers reject.
         monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
         import stock_analysis.handlers.analysis as m
         mock_s3 = _make_s3_client(report_json=_SAMPLE_REPORT)
         with patch.dict(sys.modules, {"boto3": _mock_boto3(mock_s3)}), \
              patch.object(m, "generate_ticker_analysis", return_value=_SAMPLE_ANALYSIS):
             response = m.handler(_make_event(), None)
-        assert "Access-Control-Allow-Origin" in response["headers"]
+        assert "Access-Control-Allow-Origin" not in response["headers"]
 
     def test_ticker_is_uppercased(self, monkeypatch):
         monkeypatch.setenv("CACHE_BUCKET", "test-bucket")

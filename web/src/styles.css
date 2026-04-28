@@ -1069,8 +1069,24 @@ dd {
   position: relative;
 }
 
+.rule-explanation-card details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .rule-explanation-header {
-  padding: 18px 18px 0;
+  padding: 18px 18px 18px;
+  list-style: none;
+  cursor: pointer;
+  display: block;
+}
+
+.rule-explanation-header::-webkit-details-marker { display: none; }
+
+details[open] .rule-explanation-header {
+  padding-bottom: 0;
+  border-bottom: var(--border);
 }
 
 .rule-explanation-header h3 {
