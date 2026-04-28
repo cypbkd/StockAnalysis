@@ -728,6 +728,21 @@ dd {
   border-left: 4px solid var(--accent);
 }
 
+.options-highlight {
+  border-left: 4px solid var(--accent);
+}
+
+.options-top-pick {
+  font-size: 0.65rem;
+  min-height: unset;
+  min-width: unset;
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 /* ── Earnings weekly calendar ─────────────────────────────── */
 
 .ec-week-label {

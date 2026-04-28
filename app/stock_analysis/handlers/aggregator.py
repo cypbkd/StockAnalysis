@@ -21,6 +21,7 @@ import boto3
 
 from stock_analysis.data import RULE_CONFIGS
 from stock_analysis.news import generate_news_summary
+from stock_analysis.options import build_options_ideas
 from stock_analysis.rules import CanonicalRule
 from stock_analysis.screening import build_nightly_report, OptionIdea, ReportWatchlist
 
@@ -137,26 +138,8 @@ def handler(event: dict, context: object) -> dict:
     # 5. Wrap aggregated dicts as proxies for build_nightly_report
     proxies = [_SignalProxy(item) for item in matched_results]
 
-    # 6. Options ideas — top liquid names from matched set
-    liquid = {"AAPL", "NVDA", "META", "TSLA", "MSFT", "AMZN", "GOOGL"}
-    option_ideas: List[OptionIdea] = []
-    for item in matched_results:
-        if item["symbol"] not in liquid:
-            continue
-        m = item["metrics"]
-        chg = m.get("change_percent", 0)
-        option_ideas.append(OptionIdea(
-            symbol=item["symbol"],
-            strategy="Bullish call spread" if chg >= 0 else "Cash-secured put",
-            expiration=_next_friday_str(run_date),
-            score=round(item["score"] * 100),
-            reason=(
-                f"Price ${m.get('close', 0):.2f} above 20DMA ${m.get('sma_20', 0):.2f}, "
-                f"RSI {m.get('rsi_14', 0):.1f}, day chg {chg:+.1f}%"
-            ),
-        ))
-        if len(option_ideas) >= 4:
-            break
+    # 6. Options ideas — real options chain analysis for liquid names that matched
+    option_ideas: List[OptionIdea] = build_options_ideas(matched_results, max_ideas=5)
 
     # 7. Build highlights
     sp500_signals = watchlist_signal_counts.get("spy500", 0)

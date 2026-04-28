@@ -17,7 +17,10 @@ const sampleReport = createEmptyReport({
     { symbol: 'NVDA', companyName: 'NVIDIA', watchlists: [], ruleNames: [], score: 96, lastPrice: 872.45, changePercent: 2.3, reason: '', status: 'high priority' },
     { symbol: 'XYZ', companyName: 'XYZ Corp', watchlists: [], ruleNames: [], score: 50, lastPrice: 10, changePercent: 0.5, reason: '', status: 'watch' },
   ],
-  optionsSignals: [{ symbol: 'AAPL', strategy: 'Bullish call spread', expiration: '2026-04-26', score: 88, reason: '' }],
+  optionsSignals: [
+    { symbol: 'AAPL', strategy: 'Cash-secured put — sell $257 put', expiration: '2026-05-16', score: 85, reason: 'Sell $257 put | Mid $2.45, IV 42%, OI 1,823', highlighted: true },
+    { symbol: 'GOOGL', strategy: 'Cash-secured put — sell $327 put', expiration: '2026-05-16', score: 72, reason: 'Sell $327 put | Mid $4.05, IV 40%, OI 987', highlighted: false },
+  ],
   earningsWatch: [{ symbol: 'META', companyName: 'Meta Platforms', when: 'After close', priority: 'very high', focus: '' }],
   ruleSets: [{ id: 'core-trend', name: 'Core Trend Rules', universe: 'SPY 500', description: '', naturalLanguage: '' }],
 });
@@ -37,6 +40,16 @@ test('renderReportApp includes the key dashboard sections', () => {
   assert.match(html, /Report History/);
   assert.match(html, /history-rail/);
   assert.match(html, /history-link is-active/);
+});
+
+test('renderReportApp options Top Pick badge appears for highlighted signals only', () => {
+  const html = renderReportApp(sampleReport);
+  assert.match(html, /Top Pick/);
+  assert.match(html, /options-highlight/);
+  // Non-highlighted card should not get the class
+  assert.match(html, /GOOGL/);
+  const googSection = html.split('GOOGL')[1] ?? '';
+  assert.doesNotMatch(googSection.substring(0, 200), /options-highlight/);
 });
 
 test('renderReportApp renders empty states when there are no ideas', () => {

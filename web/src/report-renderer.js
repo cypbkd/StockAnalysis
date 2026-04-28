@@ -156,11 +156,17 @@ function renderSignalCard(signal) {
 }
 
 function renderOptionCard(signal) {
+  const topPickBadge = signal.highlighted
+    ? `<span class="pill pill-alert options-top-pick">&#9733; Top Pick</span>`
+    : '';
+  const cardClass = signal.highlighted
+    ? 'surface-card signal-card hard-shadow-hover options-highlight'
+    : 'surface-card signal-card hard-shadow-hover';
   return `
-    <article class="surface-card signal-card hard-shadow-hover">
+    <article class="${cardClass}">
       <div class="card-topline">
         <div>
-          <span class="card-kicker">Options Desk</span>
+          <span class="card-kicker">Options Desk</span>${topPickBadge}
           <h3><a href="${fidelityUrl(signal.symbol)}" target="_blank" rel="noopener noreferrer">${escapeHtml(signal.symbol)}</a> <span>${escapeHtml(signal.strategy)}</span></h3>
           <p>Expires ${escapeHtml(signal.expiration)}</p>
         </div>
