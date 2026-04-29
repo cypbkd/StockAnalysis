@@ -571,6 +571,8 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
             sma_200 = round(float(close_s.iloc[-200:].mean()), 2) if len(close_s) >= 200 else sma_50
             high_200d = round(float(high_s.iloc[-200:].max()), 2) if len(high_s) >= 200 else high_52w
             low_200d = round(float(low_s.iloc[-200:].min()), 2) if len(low_s) >= 200 else low_52w
+            # Close price exactly 200 sessions ago — "open" of the 200-day window
+            open_200d = round(float(close_s.iloc[-200]), 2) if len(close_s) >= 200 else None
             # Standard pivot-point formula applied to the 200-day range
             lt_pivot = round((high_200d + low_200d + close_today) / 3, 2)
             lt_pivot_r1 = round(2 * lt_pivot - low_200d, 2)
@@ -621,6 +623,7 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
                 "sma_200": sma_200,
                 "high_200d": high_200d,
                 "low_200d": low_200d,
+                "open_200d": open_200d,
                 "lt_pivot_r1": lt_pivot_r1,
                 "lt_pivot_r2": lt_pivot_r2,
                 "lt_pivot_s1": lt_pivot_s1,

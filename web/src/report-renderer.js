@@ -358,7 +358,7 @@ function renderFundamentals(fundamentals) {
   if (forwardPe != null) items.push(`<div class="fund-item"><span class="fund-label">Forward P/E</span><strong class="fund-value font-mono">${escapeHtml(String(forwardPe.toFixed(1)))}</strong></div>`);
   if (eps != null) items.push(`<div class="fund-item"><span class="fund-label">EPS (TTM)</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(eps))}</strong></div>`);
   if (forwardEps != null) items.push(`<div class="fund-item"><span class="fund-label">Forward EPS</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(forwardEps))}</strong></div>`);
-  if (earningsGrowth != null) items.push(`<div class="fund-item"><span class="fund-label">EPS Growth</span><strong class="fund-value font-mono">${escapeHtml(formatPercent(earningsGrowth))}</strong></div>`);
+  if (earningsGrowth != null) items.push(`<div class="fund-item"><span class="fund-label">5Y Growth Est.</span><strong class="fund-value font-mono">${escapeHtml(formatPercent(earningsGrowth))}</strong></div>`);
   if (fairPrice != null) {
     const yieldNote = fundamentals.bondYield != null ? ` (Y=${fundamentals.bondYield}%)` : '';
     items.push(`<div class="fund-item fund-item-fair"><span class="fund-label">Graham Fair Value</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(fairPrice))}</strong><span class="fund-note">EPS × (8.5+2g) × 4.4/Y${escapeHtml(yieldNote)}</span></div>`);
@@ -519,14 +519,13 @@ function renderEarningsBadge(technicalData) {
   `;
 }
 
-function renderStLevels(technicalData) {
+function renderStLevels(technicalData, lastPrice) {
   if (!technicalData) return '';
   const {
-    sessionOpen, sessionHigh, sessionLow, prevClose,
-    prevOpen, prevHigh, prevLow,
+    sessionOpen, sessionHigh, sessionLow,
+    prevOpen, prevClose, prevHigh, prevLow,
     pivotPoint, pivotR1, pivotR2, pivotS1, pivotS2,
   } = technicalData;
-  const close = technicalData.lastPrice;
   if (!pivotR1 && !pivotS1 && !sessionHigh) return '';
 
   const row = (label, value, cls = '') => value != null
@@ -541,35 +540,36 @@ function renderStLevels(technicalData) {
         <p>Current session OHLC, prior session reference, and intraday pivot points.</p>
       </div>
       <div class="lt-levels-grid">
-        <div class="lt-levels-col lt-levels-resistance">
-          <div class="lt-levels-col-header">Resistance</div>
-          ${row('R2 (Pivot)', pivotR2, 'lt-level-r2')}
-          ${row('R1 (Pivot)', pivotR1, 'lt-level-r1')}
-          ${row('Session High', sessionHigh)}
-          ${row('Prev High', prevHigh)}
-        </div>
-        <div class="lt-levels-col lt-levels-anchor">
-          <div class="lt-levels-col-header">Session OHLC</div>
+        <div class="lt-levels-col">
+          <div class="lt-levels-col-header">Today</div>
           ${row('Open', sessionOpen)}
-          ${row('Close', prevClose)}
-          ${row('Prev Open', prevOpen)}
-          ${row('Pivot (P)', pivotPoint, 'lt-level-sma200')}
+          ${row('Close', lastPrice)}
+          ${row('High', sessionHigh)}
+          ${row('Low', sessionLow)}
         </div>
-        <div class="lt-levels-col lt-levels-support">
-          <div class="lt-levels-col-header">Support</div>
-          ${row('Prev Low', prevLow)}
-          ${row('Session Low', sessionLow)}
-          ${row('S1 (Pivot)', pivotS1, 'lt-level-s1')}
-          ${row('S2 (Pivot)', pivotS2, 'lt-level-s2')}
+        <div class="lt-levels-col">
+          <div class="lt-levels-col-header">Previous Day</div>
+          ${row('Open', prevOpen)}
+          ${row('Close', prevClose)}
+          ${row('High', prevHigh)}
+          ${row('Low', prevLow)}
+        </div>
+        <div class="lt-levels-col">
+          <div class="lt-levels-col-header">Pivots</div>
+          ${row('R2', pivotR2, 'lt-level-r2')}
+          ${row('R1', pivotR1, 'lt-level-r1')}
+          ${row('P', pivotPoint, 'lt-level-sma200')}
+          ${row('S1', pivotS1, 'lt-level-s1')}
+          ${row('S2', pivotS2, 'lt-level-s2')}
         </div>
       </div>
     </section>
   `;
 }
 
-function renderLtLevels(technicalData) {
+function renderLtLevels(technicalData, lastPrice) {
   if (!technicalData) return '';
-  const { ltR1, ltR2, ltS1, ltS2, sma200, high200d, low200d } = technicalData;
+  const { ltR1, ltR2, ltS1, ltS2, sma200, high200d, low200d, open200d } = technicalData;
   if (!ltR1 && !ltS1 && !sma200) return '';
 
   const row = (label, value, cls = '') => value != null
@@ -584,21 +584,20 @@ function renderLtLevels(technicalData) {
         <p>Key price zones derived from 200 trading days (40 weeks) of OHLC history.</p>
       </div>
       <div class="lt-levels-grid">
-        <div class="lt-levels-col lt-levels-resistance">
-          <div class="lt-levels-col-header">Resistance (200d)</div>
-          ${row('LT R2 (200d Pivot)', ltR2, 'lt-level-r2')}
-          ${row('LT R1 (200d Pivot)', ltR1, 'lt-level-r1')}
-          ${row('200d High', high200d)}
-        </div>
-        <div class="lt-levels-col lt-levels-anchor">
-          <div class="lt-levels-col-header">Trend Anchor</div>
+        <div class="lt-levels-col">
+          <div class="lt-levels-col-header">200-Day Range</div>
+          ${row('Open (200d ago)', open200d)}
+          ${row('Close (now)', lastPrice)}
+          ${row('High', high200d)}
+          ${row('Low', low200d)}
           ${row('SMA-200', sma200, 'lt-level-sma200')}
         </div>
-        <div class="lt-levels-col lt-levels-support">
-          <div class="lt-levels-col-header">Support (200d)</div>
-          ${row('200d Low', low200d)}
-          ${row('LT S1 (200d Pivot)', ltS1, 'lt-level-s1')}
-          ${row('LT S2 (200d Pivot)', ltS2, 'lt-level-s2')}
+        <div class="lt-levels-col">
+          <div class="lt-levels-col-header">LT Pivots</div>
+          ${row('R2', ltR2, 'lt-level-r2')}
+          ${row('R1', ltR1, 'lt-level-r1')}
+          ${row('S1', ltS1, 'lt-level-s1')}
+          ${row('S2', ltS2, 'lt-level-s2')}
         </div>
       </div>
     </section>
@@ -694,9 +693,9 @@ export function renderSymbolDetail(report, symbol) {
 
         ${conditionsHtml}
 
-        ${renderStLevels(signal.technicalData)}
+        ${renderStLevels(signal.technicalData, signal.lastPrice)}
 
-        ${renderLtLevels(signal.technicalData)}
+        ${renderLtLevels(signal.technicalData, signal.lastPrice)}
 
         <div id="ai-analysis-placeholder" class="ai-analysis-loading" aria-live="polite" aria-label="Loading trading brief">
           <div class="ai-analysis-section">
