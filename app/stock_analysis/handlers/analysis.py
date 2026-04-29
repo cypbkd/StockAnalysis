@@ -57,6 +57,21 @@ def handler(event: dict, context: object) -> dict:
         obj = s3.get_object(Bucket=bucket, Key=cache_key)
         cached = json.loads(obj["Body"].read())
         logger.info("Cache hit: %s/%s", report_date, ticker)
+        # Backfill fundamentals into cached analyses that predate this feature
+        if "fundamentals" not in cached:
+            fundamentals = _fetch_fundamentals(ticker)
+            if fundamentals:
+                cached["fundamentals"] = fundamentals
+                try:
+                    s3.put_object(
+                        Bucket=bucket,
+                        Key=cache_key,
+                        Body=json.dumps(cached),
+                        ContentType="application/json",
+                    )
+                    logger.info("Backfilled fundamentals into cache: %s/%s", report_date, ticker)
+                except Exception as exc:
+                    logger.warning("Cache backfill write error for %s/%s: %s", report_date, ticker, exc)
         return _response(200, cached)
     except s3.exceptions.NoSuchKey:
         pass
@@ -68,6 +83,9 @@ def handler(event: dict, context: object) -> dict:
     if metrics is None:
         return _response(404, {"error": f"No signal data found for {ticker} on {report_date}"})
 
+    # Fetch fundamentals (PE, fair price) and generate Gemini analysis in parallel
+    fundamentals = _fetch_fundamentals(ticker)
+
     # Generate analysis via Gemini
     analysis = generate_ticker_analysis(
         ticker=ticker,
@@ -78,6 +96,11 @@ def handler(event: dict, context: object) -> dict:
     )
     if analysis is None:
         return _response(503, {"error": "Analysis generation failed — check Lambda logs"})
+
+    if fundamentals:
+        analysis["fundamentals"] = fundamentals
+        logger.info("Fundamentals attached for %s: PE=%s fwdPE=%s fairPrice=%s",
+                    ticker, fundamentals.get("pe"), fundamentals.get("forwardPe"), fundamentals.get("fairPrice"))
 
     # Cache result so repeat views are free
     try:
@@ -125,24 +148,97 @@ def _find_signal_data(s3, bucket: str, report_date: str, ticker: str):
                 "close": signal.get("lastPrice", 0),
                 "change_percent": signal.get("changePercent", 0),
                 # Map camelCase technicalData keys back to snake_case metric names
-                "volume_ratio":    tech.get("volumeRatio"),
-                "rsi_14":          tech.get("rsi14"),
-                "ema_20":          tech.get("ema20"),
-                "sma_20":          tech.get("sma20"),
-                "sma_50":          tech.get("sma50"),
-                "high_52w":        tech.get("high52w"),
-                "low_52w":         tech.get("low52w"),
-                "pivot_r1":        tech.get("pivotR1"),
-                "pivot_r2":        tech.get("pivotR2"),
-                "pivot_s1":        tech.get("pivotS1"),
-                "pivot_s2":        tech.get("pivotS2"),
-                "earnings_date":   tech.get("earningsDate"),
+                "open":           tech.get("sessionOpen"),
+                "high":           tech.get("sessionHigh"),
+                "low":            tech.get("sessionLow"),
+                "prev_open":      tech.get("prevOpen"),
+                "prev_close":     tech.get("prevClose"),
+                "prev_high":      tech.get("prevHigh"),
+                "prev_low":       tech.get("prevLow"),
+                "volume_ratio":   tech.get("volumeRatio"),
+                "rsi_14":         tech.get("rsi14"),
+                "ema_20":         tech.get("ema20"),
+                "sma_20":         tech.get("sma20"),
+                "sma_50":         tech.get("sma50"),
+                "sma_200":        tech.get("sma200"),
+                "high_52w":       tech.get("high52w"),
+                "low_52w":        tech.get("low52w"),
+                "pivot_r1":       tech.get("pivotR1"),
+                "pivot_r2":       tech.get("pivotR2"),
+                "pivot_s1":       tech.get("pivotS1"),
+                "pivot_s2":       tech.get("pivotS2"),
+                "high_200d":      tech.get("high200d"),
+                "low_200d":       tech.get("low200d"),
+                "lt_pivot_r1":    tech.get("ltR1"),
+                "lt_pivot_r2":    tech.get("ltR2"),
+                "lt_pivot_s1":    tech.get("ltS1"),
+                "lt_pivot_s2":    tech.get("ltS2"),
+                "earnings_date":  tech.get("earningsDate"),
                 "earnings_in_days": tech.get("earningsInDays"),
                 "earnings_timing": tech.get("earningsTiming"),
             }
             return {k: v for k, v in metrics.items() if v is not None}, signal.get("ruleNames", [])
 
     return None, []
+
+
+def _fetch_fundamentals(ticker: str) -> dict:
+    """Fetch PE ratios and Graham-Lynch fair value from yfinance Ticker.info.
+
+    Uses the Benjamin Graham / Peter Lynch formula:
+      Fair Value = Trailing EPS × (8.5 + 2 × earnings_growth%)
+    where 8.5 is the P/E for a zero-growth company and earnings_growth is
+    the TTM earnings growth rate (clamped to 0–50% to avoid extremes).
+
+    Returns an empty dict on any failure so the caller can degrade gracefully.
+    """
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker).info
+        trailing_pe = info.get("trailingPE")
+        forward_pe = info.get("forwardPE")
+        trailing_eps = info.get("trailingEps")
+        forward_eps = info.get("forwardEps")
+        earnings_growth = info.get("earningsGrowth")  # decimal, e.g. 0.15 = 15%
+
+        # Revised Graham formula: V = EPS × (8.5 + 2g) × 4.4 / Y
+        # Y = current AAA/10-yr Treasury yield; 4.4 = Graham's assumed average yield
+        bond_yield = 4.4  # fallback
+        try:
+            tnx = yf.Ticker("^TNX")
+            tnx_price = tnx.info.get("regularMarketPrice") or tnx.fast_info.get("lastPrice")
+            if tnx_price:
+                bond_yield = float(tnx_price)
+        except Exception:
+            pass
+
+        fair_price = None
+        if trailing_eps and earnings_growth is not None:
+            g = max(0.0, min(50.0, float(earnings_growth) * 100))
+            fair_price = round(float(trailing_eps) * (8.5 + 2 * g) * 4.4 / bond_yield, 2)
+
+        result: dict = {}
+        if trailing_pe is not None:
+            result["pe"] = round(float(trailing_pe), 1)
+        if forward_pe is not None:
+            result["forwardPe"] = round(float(forward_pe), 1)
+        if trailing_eps is not None:
+            result["eps"] = round(float(trailing_eps), 2)
+        if forward_eps is not None:
+            result["forwardEps"] = round(float(forward_eps), 2)
+        if earnings_growth is not None:
+            result["earningsGrowth"] = round(float(earnings_growth) * 100, 1)
+        if fair_price is not None:
+            result["fairPrice"] = fair_price
+            result["bondYield"] = round(bond_yield, 2)
+
+        logger.info("Fundamentals for %s: PE=%s fwdPE=%s EPS=%s fairPrice=%s bondYield=%s",
+                    ticker, result.get("pe"), result.get("forwardPe"),
+                    result.get("eps"), result.get("fairPrice"), result.get("bondYield"))
+        return result
+    except Exception as exc:
+        logger.warning("Failed to fetch fundamentals for %s: %s", ticker, exc)
+        return {}
 
 
 def _response(status: int, body: dict) -> dict:

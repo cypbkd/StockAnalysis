@@ -506,11 +506,13 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
         try:
             if is_multi:
                 close_s = raw[("Close", yf_sym)].dropna()
+                open_s = raw[("Open", yf_sym)].dropna()
                 high_s = raw[("High", yf_sym)].dropna()
                 low_s = raw[("Low", yf_sym)].dropna()
                 vol_s = raw[("Volume", yf_sym)].dropna()
             else:
                 close_s = raw["Close"].dropna()
+                open_s = raw["Open"].dropna()
                 high_s = raw["High"].dropna()
                 low_s = raw["Low"].dropna()
                 vol_s = raw["Volume"].dropna()
@@ -521,6 +523,9 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
 
             close_today = float(close_s.iloc[-1])
             close_prev = float(close_s.iloc[-2])
+            open_today = round(float(open_s.iloc[-1]), 2) if len(open_s) > 0 else round(close_today, 2)
+            high_today = round(float(high_s.iloc[-1]), 2) if len(high_s) > 0 else round(close_today, 2)
+            low_today = round(float(low_s.iloc[-1]), 2) if len(low_s) > 0 else round(close_today, 2)
             change_pct = round((close_today - close_prev) / close_prev * 100, 2)
             sma_20 = round(float(close_s.iloc[-20:].mean()), 2)
             sma_50 = round(float(close_s.iloc[-50:].mean()), 2) if len(close_s) >= 50 else sma_20
@@ -534,9 +539,10 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
             close_to_ath_pct = round((high_52w - close_today) / high_52w * 100, 2) if high_52w > 0 else 0.0
             close_to_support_pct = round((close_today - low_52w) / low_52w * 100, 2) if low_52w > 0 else 0.0
 
-            # Pivot points from prior session's High/Low/Close
+            # Previous session OHLC (basis for daily pivot calculation)
             prev_high = float(high_s.iloc[-2]) if len(high_s) >= 2 else float(high_s.iloc[-1])
             prev_low = float(low_s.iloc[-2]) if len(low_s) >= 2 else float(low_s.iloc[-1])
+            prev_open = round(float(open_s.iloc[-2]), 2) if len(open_s) >= 2 else open_today
             pivot = round((prev_high + prev_low + close_prev) / 3, 2)
             pivot_r1 = round(2 * pivot - prev_low, 2)
             pivot_r2 = round(pivot + (prev_high - prev_low), 2)
@@ -561,20 +567,46 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
                     td_buy = 0
                     td_sell = 0
 
+            # Long-term (200-day) levels for trend context and S/R
+            sma_200 = round(float(close_s.iloc[-200:].mean()), 2) if len(close_s) >= 200 else sma_50
+            high_200d = round(float(high_s.iloc[-200:].max()), 2) if len(high_s) >= 200 else high_52w
+            low_200d = round(float(low_s.iloc[-200:].min()), 2) if len(low_s) >= 200 else low_52w
+            # Standard pivot-point formula applied to the 200-day range
+            lt_pivot = round((high_200d + low_200d + close_today) / 3, 2)
+            lt_pivot_r1 = round(2 * lt_pivot - low_200d, 2)
+            lt_pivot_r2 = round(lt_pivot + (high_200d - low_200d), 2)
+            lt_pivot_s1 = round(2 * lt_pivot - high_200d, 2)
+            lt_pivot_s2 = round(lt_pivot - (high_200d - low_200d), 2)
+            # Max 200d S2 at zero so display doesn't show negative support levels
+            lt_pivot_s2 = max(lt_pivot_s2, 0.0)
+
             results[orig_ticker] = {
+                # Current session
+                "open": open_today,
                 "close": round(close_today, 2),
+                "high": high_today,
+                "low": low_today,
                 "change_percent": change_pct,
+                # Previous session (pivot basis)
+                "prev_open": prev_open,
+                "prev_close": round(close_prev, 2),
+                "prev_high": round(prev_high, 2),
+                "prev_low": round(prev_low, 2),
+                # Moving averages
                 "sma_20": sma_20,
                 "sma_50": sma_50,
                 "ema_20": ema_20,
                 "rsi_14": rsi,
+                # Volume
                 "volume": volume_today,
                 "avg_volume_20d": avg_vol,
+                "volume_ratio": volume_ratio,
+                # 52-week range
                 "high_52w": high_52w,
                 "low_52w": low_52w,
-                "volume_ratio": volume_ratio,
                 "close_to_ath_pct": close_to_ath_pct,
                 "close_to_support_pct": close_to_support_pct,
+                # Daily pivot points
                 "pivot_point": pivot,
                 "pivot_r1": pivot_r1,
                 "pivot_r2": pivot_r2,
@@ -582,8 +614,17 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
                 "pivot_s2": pivot_s2,
                 "close_to_s1_pct": close_to_s1_pct,
                 "close_to_r1_pct": close_to_r1_pct,
+                # TD Sequential
                 "td_buy_setup": td_buy,
                 "td_sell_setup": td_sell,
+                # Long-term (200-day) levels
+                "sma_200": sma_200,
+                "high_200d": high_200d,
+                "low_200d": low_200d,
+                "lt_pivot_r1": lt_pivot_r1,
+                "lt_pivot_r2": lt_pivot_r2,
+                "lt_pivot_s1": lt_pivot_s1,
+                "lt_pivot_s2": lt_pivot_s2,
             }
         except Exception as exc:
             skipped_error.append(orig_ticker)

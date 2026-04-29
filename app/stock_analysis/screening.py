@@ -240,17 +240,39 @@ def _result_to_signal(result: ScreeningResult) -> Dict[str, Any]:
 def _extract_technical_data(metrics: Mapping[str, Any]) -> Dict[str, Any]:
     """Key technical metrics stored in the signal for on-demand AI analysis."""
     fields = {
+        # Current session OHLC
+        "sessionOpen": "open",
+        "sessionHigh": "high",
+        "sessionLow": "low",
+        # Previous session OHLC (pivot basis)
+        "prevOpen": "prev_open",
+        "prevClose": "prev_close",
+        "prevHigh": "prev_high",
+        "prevLow": "prev_low",
+        # Moving averages + momentum
         "volumeRatio": "volume_ratio",
         "rsi14": "rsi_14",
         "ema20": "ema_20",
         "sma20": "sma_20",
         "sma50": "sma_50",
+        "sma200": "sma_200",
+        # 52-week range
         "high52w": "high_52w",
         "low52w": "low_52w",
+        # Daily pivot points
+        "pivotPoint": "pivot_point",
         "pivotR1": "pivot_r1",
         "pivotR2": "pivot_r2",
         "pivotS1": "pivot_s1",
         "pivotS2": "pivot_s2",
+        # 200-day range + LT pivots
+        "high200d": "high_200d",
+        "low200d": "low_200d",
+        "ltR1": "lt_pivot_r1",
+        "ltR2": "lt_pivot_r2",
+        "ltS1": "lt_pivot_s1",
+        "ltS2": "lt_pivot_s2",
+        # Earnings
         "earningsDate": "earnings_date",
         "earningsInDays": "earnings_in_days",
         "earningsTiming": "earnings_timing",

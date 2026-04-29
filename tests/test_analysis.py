@@ -203,3 +203,126 @@ class TestFindSignalData:
         mock_s3 = _make_s3_client(report_json=_SAMPLE_REPORT)
         metrics, _ = m._find_signal_data(mock_s3, "bucket", "2026-04-26", "NVDA")
         assert metrics["company_name"] == "NVIDIA"
+
+    def test_maps_lt_fields_from_technical_data(self):
+        report = {
+            "reportDate": "2026-04-26",
+            "stockSignals": [
+                {
+                    "symbol": "NVDA",
+                    "companyName": "NVIDIA",
+                    "lastPrice": 872.45,
+                    "changePercent": 2.3,
+                    "ruleNames": ["ATH Breakout"],
+                    "status": "high priority",
+                    "technicalData": {
+                        "volumeRatio": 2.11,
+                        "rsi14": 68.4,
+                        "ema20": 830.0,
+                        "sma20": 825.0,
+                        "sma50": 780.0,
+                        "sma200": 620.0,
+                        "pivotR1": 900.0,
+                        "ltR1": 1100.0,
+                        "ltR2": 1380.0,
+                        "ltS1": 350.0,
+                        "ltS2": 70.0,
+                    },
+                }
+            ],
+        }
+        m = self._module()
+        mock_s3 = _make_s3_client(report_json=report)
+        metrics, _ = m._find_signal_data(mock_s3, "bucket", "2026-04-26", "NVDA")
+        assert metrics["sma_200"] == 620.0
+        assert metrics["lt_pivot_r1"] == 1100.0
+        assert metrics["lt_pivot_r2"] == 1380.0
+        assert metrics["lt_pivot_s1"] == 350.0
+        assert metrics["lt_pivot_s2"] == 70.0
+
+
+# ---------------------------------------------------------------------------
+# _fetch_fundamentals
+# ---------------------------------------------------------------------------
+
+class TestFetchFundamentals:
+    def _module(self):
+        import stock_analysis.handlers.analysis as m
+        return m
+
+    @staticmethod
+    def _make_yf(stock_info: dict, bond_yield: float = 4.4):
+        """Build a mock yfinance module that returns different tickers for stock vs ^TNX."""
+        stock_ticker = MagicMock()
+        stock_ticker.info = stock_info
+
+        tnx_ticker = MagicMock()
+        tnx_ticker.info = {"regularMarketPrice": bond_yield}
+
+        mock_yf = MagicMock()
+        def _ticker(symbol):
+            return tnx_ticker if symbol == "^TNX" else stock_ticker
+        mock_yf.Ticker.side_effect = _ticker
+        return mock_yf
+
+    def test_returns_pe_and_fair_price(self, monkeypatch):
+        m = self._module()
+        stock_info = {
+            "trailingPE": 42.3,
+            "forwardPE": 31.8,
+            "trailingEps": 8.22,
+            "forwardEps": 10.94,
+            "earningsGrowth": 0.254,
+        }
+        mock_yf = self._make_yf(stock_info, bond_yield=4.4)
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_fundamentals("NVDA")
+        assert result["pe"] == 42.3
+        assert result["forwardPe"] == 31.8
+        assert result["eps"] == 8.22
+        assert result["earningsGrowth"] == 25.4
+        # Fair price = EPS × (8.5 + 2 × 25.4) × 4.4/4.4 = 8.22 × 59.3 ≈ 487.45
+        assert "fairPrice" in result
+        assert result["fairPrice"] > 0
+        assert result["bondYield"] == 4.4
+
+    def test_clamps_growth_to_50_pct(self, monkeypatch):
+        m = self._module()
+        stock_info = {"trailingEps": 10.0, "earningsGrowth": 2.0}  # 200% → clamp to 50%
+        mock_yf = self._make_yf(stock_info, bond_yield=4.4)
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_fundamentals("NVDA")
+        # 10.0 × (8.5 + 2 × 50) × 4.4/4.4 = 10.0 × 108.5 = 1085
+        assert result["fairPrice"] == 1085.0
+
+    def test_revised_graham_uses_bond_yield(self, monkeypatch):
+        m = self._module()
+        stock_info = {"trailingEps": 10.0, "earningsGrowth": 0.0}  # g=0, simplifies formula
+        mock_yf = self._make_yf(stock_info, bond_yield=8.8)
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_fundamentals("NVDA")
+        # 10.0 × 8.5 × 4.4 / 8.8 = 10.0 × 8.5 × 0.5 = 42.5
+        assert result["fairPrice"] == 42.5
+        assert result["bondYield"] == 8.8
+
+    def test_returns_empty_on_exception(self, monkeypatch):
+        m = self._module()
+        mock_yf = MagicMock()
+        mock_yf.Ticker.side_effect = Exception("network error")
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_fundamentals("NVDA")
+        assert result == {}
+
+    def test_skips_fair_price_when_eps_missing(self, monkeypatch):
+        m = self._module()
+        stock_info = {"trailingPE": 30.0}
+        mock_yf = self._make_yf(stock_info)
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_fundamentals("NVDA")
+        assert result["pe"] == 30.0
+        assert "fairPrice" not in result

@@ -348,6 +348,30 @@ function parseReasonConditions(reason) {
   return reason.split(';').map(s => s.trim()).filter(Boolean);
 }
 
+function renderFundamentals(fundamentals) {
+  if (!fundamentals || typeof fundamentals !== 'object') return '';
+  const { pe, forwardPe, eps, forwardEps, earningsGrowth, fairPrice } = fundamentals;
+  if (pe == null && forwardPe == null && fairPrice == null) return '';
+
+  const items = [];
+  if (pe != null) items.push(`<div class="fund-item"><span class="fund-label">P/E (TTM)</span><strong class="fund-value font-mono">${escapeHtml(String(pe.toFixed(1)))}</strong></div>`);
+  if (forwardPe != null) items.push(`<div class="fund-item"><span class="fund-label">Forward P/E</span><strong class="fund-value font-mono">${escapeHtml(String(forwardPe.toFixed(1)))}</strong></div>`);
+  if (eps != null) items.push(`<div class="fund-item"><span class="fund-label">EPS (TTM)</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(eps))}</strong></div>`);
+  if (forwardEps != null) items.push(`<div class="fund-item"><span class="fund-label">Forward EPS</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(forwardEps))}</strong></div>`);
+  if (earningsGrowth != null) items.push(`<div class="fund-item"><span class="fund-label">EPS Growth</span><strong class="fund-value font-mono">${escapeHtml(formatPercent(earningsGrowth))}</strong></div>`);
+  if (fairPrice != null) {
+    const yieldNote = fundamentals.bondYield != null ? ` (Y=${fundamentals.bondYield}%)` : '';
+    items.push(`<div class="fund-item fund-item-fair"><span class="fund-label">Graham Fair Value</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(fairPrice))}</strong><span class="fund-note">EPS × (8.5+2g) × 4.4/Y${escapeHtml(yieldNote)}</span></div>`);
+  }
+
+  return `
+    <div class="ai-block ai-fundamentals">
+      <h3 class="ai-block-heading">Fundamental Snapshot</h3>
+      <div class="fund-grid">${items.join('')}</div>
+    </div>
+  `;
+}
+
 export function renderDetailAnalysis(analysis) {
   if (!analysis || typeof analysis !== 'object') return '';
 
@@ -425,6 +449,8 @@ export function renderDetailAnalysis(analysis) {
         <h2>Trading Brief</h2>
       </div>
 
+      ${renderFundamentals(analysis.fundamentals)}
+
       ${summaryHtml}
 
       ${rulesRows ? `
@@ -465,6 +491,116 @@ export function renderDetailAnalysis(analysis) {
       ` : ''}
 
       ${verdictHtml}
+    </section>
+  `;
+}
+
+function renderEarningsBadge(technicalData) {
+  if (!technicalData) return '';
+  const days = technicalData.earningsInDays;
+  const dateStr = technicalData.earningsDate;
+  const timing = technicalData.earningsTiming || 'TBD';
+  if (days == null || dateStr == null) return '';
+  if (days < -7 || days > 7) return '';
+
+  let label;
+  if (days === 0) label = 'Earnings Today';
+  else if (days === 1) label = 'Earnings Tomorrow';
+  else if (days < 0) label = `Earnings ${Math.abs(days)}d ago`;
+  else label = `Earnings in ${days}d`;
+
+  const urgencyClass = Math.abs(days) <= 1 ? 'earnings-badge-urgent' : 'earnings-badge-soon';
+  return `
+    <div class="earnings-badge ${urgencyClass}">
+      <span class="earnings-badge-icon">&#128197;</span>
+      <span class="earnings-badge-label">${escapeHtml(label)}</span>
+      <span class="earnings-badge-detail">${escapeHtml(dateStr)} · ${escapeHtml(timing)}</span>
+    </div>
+  `;
+}
+
+function renderStLevels(technicalData) {
+  if (!technicalData) return '';
+  const {
+    sessionOpen, sessionHigh, sessionLow, prevClose,
+    prevOpen, prevHigh, prevLow,
+    pivotPoint, pivotR1, pivotR2, pivotS1, pivotS2,
+  } = technicalData;
+  const close = technicalData.lastPrice;
+  if (!pivotR1 && !pivotS1 && !sessionHigh) return '';
+
+  const row = (label, value, cls = '') => value != null
+    ? `<div class="lt-level-row ${cls}"><span class="lt-level-label">${escapeHtml(label)}</span><span class="lt-level-value font-mono">${escapeHtml(formatPrice(value))}</span></div>`
+    : '';
+
+  return `
+    <section class="lt-levels-section">
+      <div class="section-heading">
+        <span class="section-label">Short-Term Levels</span>
+        <h2>Daily Session &amp; Pivot Levels</h2>
+        <p>Current session OHLC, prior session reference, and intraday pivot points.</p>
+      </div>
+      <div class="lt-levels-grid">
+        <div class="lt-levels-col lt-levels-resistance">
+          <div class="lt-levels-col-header">Resistance</div>
+          ${row('R2 (Pivot)', pivotR2, 'lt-level-r2')}
+          ${row('R1 (Pivot)', pivotR1, 'lt-level-r1')}
+          ${row('Session High', sessionHigh)}
+          ${row('Prev High', prevHigh)}
+        </div>
+        <div class="lt-levels-col lt-levels-anchor">
+          <div class="lt-levels-col-header">Session OHLC</div>
+          ${row('Open', sessionOpen)}
+          ${row('Close', prevClose)}
+          ${row('Prev Open', prevOpen)}
+          ${row('Pivot (P)', pivotPoint, 'lt-level-sma200')}
+        </div>
+        <div class="lt-levels-col lt-levels-support">
+          <div class="lt-levels-col-header">Support</div>
+          ${row('Prev Low', prevLow)}
+          ${row('Session Low', sessionLow)}
+          ${row('S1 (Pivot)', pivotS1, 'lt-level-s1')}
+          ${row('S2 (Pivot)', pivotS2, 'lt-level-s2')}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderLtLevels(technicalData) {
+  if (!technicalData) return '';
+  const { ltR1, ltR2, ltS1, ltS2, sma200, high200d, low200d } = technicalData;
+  if (!ltR1 && !ltS1 && !sma200) return '';
+
+  const row = (label, value, cls = '') => value != null
+    ? `<div class="lt-level-row ${cls}"><span class="lt-level-label">${escapeHtml(label)}</span><span class="lt-level-value font-mono">${escapeHtml(formatPrice(value))}</span></div>`
+    : '';
+
+  return `
+    <section class="lt-levels-section">
+      <div class="section-heading">
+        <span class="section-label">Long-Term Levels</span>
+        <h2>200-Day S/R Map</h2>
+        <p>Key price zones derived from 200 trading days (40 weeks) of OHLC history.</p>
+      </div>
+      <div class="lt-levels-grid">
+        <div class="lt-levels-col lt-levels-resistance">
+          <div class="lt-levels-col-header">Resistance (200d)</div>
+          ${row('LT R2 (200d Pivot)', ltR2, 'lt-level-r2')}
+          ${row('LT R1 (200d Pivot)', ltR1, 'lt-level-r1')}
+          ${row('200d High', high200d)}
+        </div>
+        <div class="lt-levels-col lt-levels-anchor">
+          <div class="lt-levels-col-header">Trend Anchor</div>
+          ${row('SMA-200', sma200, 'lt-level-sma200')}
+        </div>
+        <div class="lt-levels-col lt-levels-support">
+          <div class="lt-levels-col-header">Support (200d)</div>
+          ${row('200d Low', low200d)}
+          ${row('LT S1 (200d Pivot)', ltS1, 'lt-level-s1')}
+          ${row('LT S2 (200d Pivot)', ltS2, 'lt-level-s2')}
+        </div>
+      </div>
     </section>
   `;
 }
@@ -550,7 +686,17 @@ export function renderSymbolDetail(report, symbol) {
           </div>
         </header>
 
+        ${renderEarningsBadge(signal.technicalData)}
+
+        <div id="tradingview-chart-container" class="tv-chart-container" data-symbol="${escapeHtml(symbol)}">
+          <div class="tv-chart-inner"></div>
+        </div>
+
         ${conditionsHtml}
+
+        ${renderStLevels(signal.technicalData)}
+
+        ${renderLtLevels(signal.technicalData)}
 
         <div id="ai-analysis-placeholder" class="ai-analysis-loading" aria-live="polite" aria-label="Loading trading brief">
           <div class="ai-analysis-section">

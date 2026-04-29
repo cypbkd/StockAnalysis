@@ -381,3 +381,156 @@ test('renderDetailAnalysis omits rule table when rules array is empty', () => {
   assert.doesNotMatch(html, /ai-rule-table/);
   assert.match(html, /ai-summary/);
 });
+
+test('renderDetailAnalysis renders fundamentals when present', () => {
+  const analysis = {
+    ...sampleDetailAnalysis,
+    fundamentals: { pe: 42.3, forwardPe: 31.8, eps: 8.22, fairPrice: 621.68, bondYield: 4.7 },
+  };
+  const html = renderDetailAnalysis(analysis);
+  assert.match(html, /fund-grid/);
+  assert.match(html, /P\/E \(TTM\)/);
+  assert.match(html, /Forward P\/E/);
+  assert.match(html, /Graham Fair Value/);
+  assert.match(html, /621/);
+  assert.match(html, /4\.4\/Y/);
+  assert.match(html, /4\.7%/);
+});
+
+test('renderDetailAnalysis omits fundamentals block when absent', () => {
+  const html = renderDetailAnalysis(sampleDetailAnalysis);
+  assert.doesNotMatch(html, /ai-fundamentals/);
+});
+
+// ── renderSymbolDetail — earnings badge ───────────────────────────────────────
+
+const detailReportWithTechData = createEmptyReport({
+  reportDate: '2026-04-23',
+  stockSignals: [
+    {
+      symbol: 'NVDA',
+      companyName: 'NVIDIA',
+      watchlists: ['spy500'],
+      ruleNames: ['ATH Breakout'],
+      score: 100,
+      lastPrice: 872.45,
+      changePercent: 2.3,
+      reason: 'close 872.45 >= 850.00',
+      status: 'high priority',
+      technicalData: {
+        sessionOpen: 855.0,
+        sessionHigh: 880.0,
+        sessionLow: 850.0,
+        prevOpen: 840.0,
+        prevClose: 845.0,
+        prevHigh: 862.0,
+        prevLow: 835.0,
+        volumeRatio: 2.11,
+        rsi14: 68.4,
+        ema20: 830.0,
+        sma20: 825.0,
+        sma50: 780.0,
+        sma200: 620.0,
+        high52w: 872.45,
+        low52w: 400.0,
+        pivotPoint: 854.0,
+        pivotR1: 900.0,
+        pivotR2: 930.0,
+        pivotS1: 840.0,
+        pivotS2: 810.0,
+        high200d: 872.45,
+        low200d: 400.0,
+        ltR1: 1100.0,
+        ltR2: 1380.0,
+        ltS1: 350.0,
+        ltS2: 70.0,
+        earningsDate: '2026-04-26',
+        earningsInDays: 3,
+        earningsTiming: 'After Close',
+      },
+    },
+  ],
+});
+
+test('renderSymbolDetail shows earnings badge when within 7 days', () => {
+  const html = renderSymbolDetail(detailReportWithTechData, 'NVDA');
+  assert.match(html, /earnings-badge/);
+  assert.match(html, /Earnings in 3d/);
+  assert.match(html, /After Close/);
+});
+
+test('renderSymbolDetail does not show earnings badge when outside 7-day window', () => {
+  const report = createEmptyReport({
+    reportDate: '2026-04-23',
+    stockSignals: [
+      {
+        symbol: 'NVDA',
+        companyName: 'NVIDIA',
+        watchlists: [],
+        ruleNames: [],
+        score: 100,
+        lastPrice: 800.0,
+        changePercent: 0,
+        reason: '',
+        status: 'matched',
+        technicalData: { earningsDate: '2026-06-01', earningsInDays: 40 },
+      },
+    ],
+  });
+  const html = renderSymbolDetail(report, 'NVDA');
+  assert.doesNotMatch(html, /earnings-badge/);
+});
+
+test('renderSymbolDetail renders long-term S/R section when ltR1 is present', () => {
+  const html = renderSymbolDetail(detailReportWithTechData, 'NVDA');
+  assert.match(html, /lt-levels-section/);
+  assert.match(html, /200-Day S\/R Map/);
+  assert.match(html, /LT R1/);
+  assert.match(html, /SMA-200/);
+});
+
+test('renderSymbolDetail renders short-term daily session section when session data present', () => {
+  const reportWithSession = createEmptyReport({
+    reportDate: '2026-04-23',
+    stockSignals: [{
+      symbol: 'NVDA',
+      companyName: 'NVIDIA',
+      watchlists: [],
+      ruleNames: [],
+      score: 100,
+      lastPrice: 872.45,
+      changePercent: 2.3,
+      reason: '',
+      status: 'high priority',
+      technicalData: {
+        sessionOpen: 850.0,
+        sessionHigh: 880.0,
+        sessionLow: 845.0,
+        prevClose: 840.0,
+        prevOpen: 835.0,
+        prevHigh: 855.0,
+        prevLow: 830.0,
+        pivotPoint: 845.0,
+        pivotR1: 900.0,
+        pivotR2: 930.0,
+        pivotS1: 840.0,
+        pivotS2: 810.0,
+        ltR1: 1100.0,
+        ltS1: 350.0,
+        sma200: 620.0,
+      },
+    }],
+  });
+  const html = renderSymbolDetail(reportWithSession, 'NVDA');
+  assert.match(html, /Daily Session.*Pivot Levels/s);
+  assert.match(html, /Session High/);
+  assert.match(html, /Pivot \(P\)/);
+  assert.match(html, /R1 \(Pivot\)/);
+  assert.match(html, /S2 \(Pivot\)/);
+});
+
+test('renderSymbolDetail renders TradingView chart container with symbol', () => {
+  const html = renderSymbolDetail(detailReportWithTechData, 'NVDA');
+  assert.match(html, /tradingview-chart-container/);
+  assert.match(html, /data-symbol="NVDA"/);
+});

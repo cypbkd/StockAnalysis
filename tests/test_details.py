@@ -169,6 +169,21 @@ class TestBuildPrompt:
         prompt = m._build_prompt("X", "X Corp", {}, [], {}, "2026-04-26")
         assert "X" in prompt
 
+    def test_includes_sma200_in_prompt(self):
+        m = _reload()
+        metrics = {**_SAMPLE_METRICS, "sma_200": 620.0}
+        prompt = m._build_prompt("NVDA", "NVIDIA", metrics, [], _SAMPLE_RULE_CONFIGS, "2026-04-26")
+        assert "620.00" in prompt
+        assert "SMA-200" in prompt
+
+    def test_includes_lt_pivot_levels_in_prompt(self):
+        m = _reload()
+        metrics = {**_SAMPLE_METRICS, "lt_pivot_r1": 1100.0, "lt_pivot_s1": 350.0}
+        prompt = m._build_prompt("NVDA", "NVIDIA", metrics, [], _SAMPLE_RULE_CONFIGS, "2026-04-26")
+        assert "1100.00" in prompt
+        assert "350.00" in prompt
+        assert "Long-term Pivot" in prompt
+
 
 # ---------------------------------------------------------------------------
 # generate_ticker_analysis

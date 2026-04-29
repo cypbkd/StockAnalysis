@@ -33,6 +33,15 @@ const MOCK_ANALYSIS = {
     rationale: "ATH Breakout, High-Volume Day, and Strong Trending Day in confluence signal institutional accumulation.",
     strategy: "Do not chase. Wait for pullback to $318-$330 S1 zone. Hard stop below $290.",
   },
+  fundamentals: {
+    pe: 42.3,
+    forwardPe: 31.8,
+    eps: 8.22,
+    forwardEps: 10.94,
+    earningsGrowth: 25.4,
+    fairPrice: 621.68,
+    bondYield: 4.7,
+  },
 };
 
 const contentTypes = {
