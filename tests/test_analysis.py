@@ -251,10 +251,31 @@ class TestFetchFundamentals:
         return m
 
     @staticmethod
-    def _make_yf(stock_info: dict, bond_yield: float = 4.4):
-        """Build a mock yfinance module that returns different tickers for stock vs ^TNX."""
+    def _make_yf(stock_info: dict, bond_yield: float = 4.4, growth_5y: float = None):
+        """Build a mock yfinance module.
+
+        growth_5y: analyst 5-year EPS growth as a decimal (e.g. 0.35 = 35%).
+                   Pass None to simulate no analyst estimate available.
+        """
         stock_ticker = MagicMock()
         stock_ticker.info = stock_info
+
+        # Mock growth_estimates DataFrame
+        if growth_5y is not None:
+            inner_row = MagicMock()
+            inner_row.empty = False
+            inner_row.iloc = [growth_5y]
+            outer_row = MagicMock()
+            outer_row.dropna.return_value = inner_row
+            growth_df = MagicMock()
+            growth_df.empty = False
+            growth_df.index = ["+5y"]
+            growth_df.loc.__getitem__.return_value = outer_row
+        else:
+            growth_df = MagicMock()
+            growth_df.empty = True
+            growth_df.index = []
+        stock_ticker.growth_estimates = growth_df
 
         tnx_ticker = MagicMock()
         tnx_ticker.info = {"regularMarketPrice": bond_yield}
@@ -272,9 +293,8 @@ class TestFetchFundamentals:
             "forwardPE": 31.8,
             "trailingEps": 8.22,
             "forwardEps": 10.94,
-            "earningsGrowth": 0.254,
         }
-        mock_yf = self._make_yf(stock_info, bond_yield=4.4)
+        mock_yf = self._make_yf(stock_info, bond_yield=4.4, growth_5y=0.254)
         import sys
         with patch.dict(sys.modules, {"yfinance": mock_yf}):
             result = m._fetch_fundamentals("NVDA")
@@ -282,31 +302,43 @@ class TestFetchFundamentals:
         assert result["forwardPe"] == 31.8
         assert result["eps"] == 8.22
         assert result["earningsGrowth"] == 25.4
-        # Fair price = EPS × (8.5 + 2 × 25.4) × 4.4/4.4 = 8.22 × 59.3 ≈ 487.45
+        # Fair price = EPS × (8.5 + 2×25.4) × 4.4/4.4 = 8.22 × 59.3 ≈ 487.45
         assert "fairPrice" in result
         assert result["fairPrice"] > 0
         assert result["bondYield"] == 4.4
 
     def test_clamps_growth_to_50_pct(self, monkeypatch):
         m = self._module()
-        stock_info = {"trailingEps": 10.0, "earningsGrowth": 2.0}  # 200% → clamp to 50%
-        mock_yf = self._make_yf(stock_info, bond_yield=4.4)
+        stock_info = {"trailingEps": 10.0}
+        mock_yf = self._make_yf(stock_info, bond_yield=4.4, growth_5y=2.0)  # 200% → clamp to 50%
         import sys
         with patch.dict(sys.modules, {"yfinance": mock_yf}):
             result = m._fetch_fundamentals("NVDA")
-        # 10.0 × (8.5 + 2 × 50) × 4.4/4.4 = 10.0 × 108.5 = 1085
+        # 10.0 × (8.5 + 2×50) × 4.4/4.4 = 10.0 × 108.5 = 1085
         assert result["fairPrice"] == 1085.0
 
     def test_revised_graham_uses_bond_yield(self, monkeypatch):
         m = self._module()
-        stock_info = {"trailingEps": 10.0, "earningsGrowth": 0.0}  # g=0, simplifies formula
-        mock_yf = self._make_yf(stock_info, bond_yield=8.8)
+        stock_info = {"trailingEps": 10.0}
+        mock_yf = self._make_yf(stock_info, bond_yield=8.8, growth_5y=0.0)  # g=0 simplifies formula
         import sys
         with patch.dict(sys.modules, {"yfinance": mock_yf}):
             result = m._fetch_fundamentals("NVDA")
-        # 10.0 × 8.5 × 4.4 / 8.8 = 10.0 × 8.5 × 0.5 = 42.5
+        # 10.0 × 8.5 × 4.4/8.8 = 10.0 × 8.5 × 0.5 = 42.5
         assert result["fairPrice"] == 42.5
         assert result["bondYield"] == 8.8
+
+    def test_hides_growth_and_fair_price_when_no_5y_estimate(self, monkeypatch):
+        m = self._module()
+        stock_info = {"trailingPE": 22.3, "trailingEps": 10.08, "forwardEps": 14.12}
+        mock_yf = self._make_yf(stock_info, growth_5y=None)  # no analyst estimate
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_fundamentals("NVDA")
+        assert result["pe"] == 22.3
+        assert result["eps"] == 10.08
+        assert "earningsGrowth" not in result
+        assert "fairPrice" not in result
 
     def test_returns_empty_on_exception(self, monkeypatch):
         m = self._module()
@@ -320,9 +352,11 @@ class TestFetchFundamentals:
     def test_skips_fair_price_when_eps_missing(self, monkeypatch):
         m = self._module()
         stock_info = {"trailingPE": 30.0}
-        mock_yf = self._make_yf(stock_info)
+        mock_yf = self._make_yf(stock_info, growth_5y=0.254)
         import sys
         with patch.dict(sys.modules, {"yfinance": mock_yf}):
             result = m._fetch_fundamentals("NVDA")
         assert result["pe"] == 30.0
         assert "fairPrice" not in result
+        # earningsGrowth present since 5y estimate was available, but no EPS to compute fair price
+        assert result["earningsGrowth"] == 25.4

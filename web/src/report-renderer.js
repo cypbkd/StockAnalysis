@@ -358,7 +358,7 @@ function renderFundamentals(fundamentals) {
   if (forwardPe != null) items.push(`<div class="fund-item"><span class="fund-label">Forward P/E</span><strong class="fund-value font-mono">${escapeHtml(String(forwardPe.toFixed(1)))}</strong></div>`);
   if (eps != null) items.push(`<div class="fund-item"><span class="fund-label">EPS (TTM)</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(eps))}</strong></div>`);
   if (forwardEps != null) items.push(`<div class="fund-item"><span class="fund-label">Forward EPS</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(forwardEps))}</strong></div>`);
-  if (earningsGrowth != null) items.push(`<div class="fund-item"><span class="fund-label">EPS Growth</span><strong class="fund-value font-mono">${escapeHtml(formatPercent(earningsGrowth))}</strong></div>`);
+  if (earningsGrowth != null) items.push(`<div class="fund-item"><span class="fund-label">5Y Growth Est.</span><strong class="fund-value font-mono">${escapeHtml(formatPercent(earningsGrowth))}</strong></div>`);
   if (fairPrice != null) {
     const yieldNote = fundamentals.bondYield != null ? ` (Y=${fundamentals.bondYield}%)` : '';
     items.push(`<div class="fund-item fund-item-fair"><span class="fund-label">Graham Fair Value</span><strong class="fund-value font-mono">${escapeHtml(formatPrice(fairPrice))}</strong><span class="fund-note">EPS × (8.5+2g) × 4.4/Y${escapeHtml(yieldNote)}</span></div>`);

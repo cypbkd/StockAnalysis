@@ -184,26 +184,38 @@ def _find_signal_data(s3, bucket: str, report_date: str, ticker: str):
 
 
 def _fetch_fundamentals(ticker: str) -> dict:
-    """Fetch PE ratios and Graham-Lynch fair value from yfinance Ticker.info.
+    """Fetch PE, EPS, and Revised Graham fair value.
 
-    Uses the Benjamin Graham / Peter Lynch formula:
-      Fair Value = Trailing EPS × (8.5 + 2 × earnings_growth%)
-    where 8.5 is the P/E for a zero-growth company and earnings_growth is
-    the TTM earnings growth rate (clamped to 0–50% to avoid extremes).
+    Growth rate g uses the analyst 5-year EPS growth estimate from
+    yfinance growth_estimates["+5y"]. If that data is unavailable,
+    earningsGrowth and fairPrice are both omitted from the result.
+
+    Revised Graham formula: V = EPS × (8.5 + 2g) × 4.4 / Y
+    where Y is the current 10-yr Treasury yield (fallback 4.4%).
 
     Returns an empty dict on any failure so the caller can degrade gracefully.
     """
     try:
         import yfinance as yf
-        info = yf.Ticker(ticker).info
+        yf_ticker = yf.Ticker(ticker)
+        info = yf_ticker.info
         trailing_pe = info.get("trailingPE")
         forward_pe = info.get("forwardPE")
         trailing_eps = info.get("trailingEps")
         forward_eps = info.get("forwardEps")
-        earnings_growth = info.get("earningsGrowth")  # decimal, e.g. 0.15 = 15%
+
+        # 5-year analyst EPS growth estimate (decimal, e.g. 0.08 = 8%)
+        earnings_growth = None
+        try:
+            growth_df = yf_ticker.growth_estimates
+            if growth_df is not None and not growth_df.empty and "+5y" in growth_df.index:
+                row = growth_df.loc["+5y"].dropna()
+                if not row.empty:
+                    earnings_growth = float(row.iloc[0])
+        except Exception as exc:
+            logger.debug("growth_estimates unavailable for %s: %s", ticker, exc)
 
         # Revised Graham formula: V = EPS × (8.5 + 2g) × 4.4 / Y
-        # Y = current AAA/10-yr Treasury yield; 4.4 = Graham's assumed average yield
         bond_yield = 4.4  # fallback
         try:
             tnx = yf.Ticker("^TNX")
@@ -215,7 +227,7 @@ def _fetch_fundamentals(ticker: str) -> dict:
 
         fair_price = None
         if trailing_eps and earnings_growth is not None:
-            g = max(0.0, min(50.0, float(earnings_growth) * 100))
+            g = max(0.0, min(50.0, earnings_growth * 100))
             fair_price = round(float(trailing_eps) * (8.5 + 2 * g) * 4.4 / bond_yield, 2)
 
         result: dict = {}
@@ -228,14 +240,14 @@ def _fetch_fundamentals(ticker: str) -> dict:
         if forward_eps is not None:
             result["forwardEps"] = round(float(forward_eps), 2)
         if earnings_growth is not None:
-            result["earningsGrowth"] = round(float(earnings_growth) * 100, 1)
+            result["earningsGrowth"] = round(earnings_growth * 100, 1)
         if fair_price is not None:
             result["fairPrice"] = fair_price
             result["bondYield"] = round(bond_yield, 2)
 
-        logger.info("Fundamentals for %s: PE=%s fwdPE=%s EPS=%s fairPrice=%s bondYield=%s",
+        logger.info("Fundamentals for %s: PE=%s fwdPE=%s EPS=%s growth5y=%s fairPrice=%s bondYield=%s",
                     ticker, result.get("pe"), result.get("forwardPe"),
-                    result.get("eps"), result.get("fairPrice"), result.get("bondYield"))
+                    result.get("eps"), result.get("earningsGrowth"), result.get("fairPrice"), result.get("bondYield"))
         return result
     except Exception as exc:
         logger.warning("Failed to fetch fundamentals for %s: %s", ticker, exc)
