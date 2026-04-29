@@ -1,5 +1,37 @@
 import { renderReportApp, renderSymbolDetail, renderDetailAnalysis } from './report-renderer.js';
 
+function injectTradingViewChart(symbol) {
+  const container = document.getElementById('tradingview-chart-container');
+  if (!container) return;
+
+  const inner = container.querySelector('.tv-chart-inner');
+  if (!inner) return;
+
+  // TradingView advanced chart widget — supports candle charts via style:"1"
+  // Script tags in innerHTML don't execute; we create and append the script node dynamically.
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  script.async = true;
+  script.textContent = JSON.stringify({
+    autosize: true,
+    symbol: symbol,
+    interval: 'D',
+    timezone: 'America/New_York',
+    theme: 'light',
+    style: '1',
+    locale: 'en',
+    withdateranges: true,
+    range: '6M',
+    hide_side_toolbar: true,
+    allow_symbol_change: false,
+    save_image: false,
+    calendar: false,
+  });
+
+  inner.appendChild(script);
+}
+
 function reportUrl() {
   const date = new URLSearchParams(window.location.search).get('date');
   return date
@@ -73,6 +105,7 @@ function applyView(report, config) {
     document.title = `${symbol} — Signal Detail`;
     root.innerHTML = renderSymbolDetail(report, symbol);
     window.scrollTo(0, 0);
+    injectTradingViewChart(symbol);
     loadAndRenderAnalysis(symbol, report.reportDate, config?.analysisUrl);
     return;
   }

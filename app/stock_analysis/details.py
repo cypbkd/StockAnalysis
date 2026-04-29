@@ -62,12 +62,17 @@ def _build_prompt(
     ema_20 = metrics.get("ema_20", 0) or 0
     sma_20 = metrics.get("sma_20", 0) or 0
     sma_50 = metrics.get("sma_50", 0) or 0
+    sma_200 = metrics.get("sma_200", 0) or 0
     high_52w = metrics.get("high_52w", 0) or 0
     low_52w = metrics.get("low_52w", 0) or 0
     pivot_r1 = metrics.get("pivot_r1", 0) or 0
     pivot_r2 = metrics.get("pivot_r2", 0) or 0
     pivot_s1 = metrics.get("pivot_s1", 0) or 0
     pivot_s2 = metrics.get("pivot_s2", 0) or 0
+    lt_pivot_r1 = metrics.get("lt_pivot_r1", 0) or 0
+    lt_pivot_r2 = metrics.get("lt_pivot_r2", 0) or 0
+    lt_pivot_s1 = metrics.get("lt_pivot_s1", 0) or 0
+    lt_pivot_s2 = metrics.get("lt_pivot_s2", 0) or 0
 
     earnings_line = ""
     earnings_in_days = metrics.get("earnings_in_days")
@@ -99,12 +104,13 @@ MARKET METRICS:
 - EMA-20: ${ema_20:.2f}
 - SMA-20: ${sma_20:.2f}
 - SMA-50: ${sma_50:.2f}
+- SMA-200: ${sma_200:.2f} (long-term trend line; price {"above" if close > sma_200 else "below"})
 - 52-Week High: ${high_52w:.2f}
 - 52-Week Low: ${low_52w:.2f}
-- Pivot R1: ${pivot_r1:.2f}
-- Pivot R2: ${pivot_r2:.2f}
-- Pivot S1: ${pivot_s1:.2f}
-- Pivot S2: ${pivot_s2:.2f}{earnings_line}
+- Short-term Pivot R1/R2: ${pivot_r1:.2f} / ${pivot_r2:.2f}
+- Short-term Pivot S1/S2: ${pivot_s1:.2f} / ${pivot_s2:.2f}
+- Long-term Pivot R1/R2 (200d): ${lt_pivot_r1:.2f} / ${lt_pivot_r2:.2f}
+- Long-term Pivot S1/S2 (200d): ${lt_pivot_s1:.2f} / ${lt_pivot_s2:.2f}{earnings_line}
 
 TRIGGERED RULES ({len(rule_names)} matched):
 {rules_block}
@@ -122,13 +128,16 @@ Return a JSON object with exactly this structure (use the real metric values pro
   ],
   "priceTargets": {{
     "resistance": [
-      {{"label": "R1 (Pivot)", "price": {pivot_r1:.2f}, "note": "First pivot resistance"}},
-      {{"label": "R2 (Pivot)", "price": {pivot_r2:.2f}, "note": "Second pivot resistance — extended target"}}
+      {{"label": "R1 (Pivot)", "price": {pivot_r1:.2f}, "note": "First short-term pivot resistance"}},
+      {{"label": "R2 (Pivot)", "price": {pivot_r2:.2f}, "note": "Second short-term pivot — extended target"}},
+      {{"label": "LT R1 (200d)", "price": {lt_pivot_r1:.2f}, "note": "Long-term resistance from 200-day pivot"}}
     ],
     "support": [
-      {{"label": "S1 (Pivot)", "price": {pivot_s1:.2f}, "note": "First pivot support"}},
+      {{"label": "S1 (Pivot)", "price": {pivot_s1:.2f}, "note": "First short-term pivot support"}},
       {{"label": "EMA-20", "price": {ema_20:.2f}, "note": "Short-term trend anchor"}},
-      {{"label": "SMA-50", "price": {sma_50:.2f}, "note": "Medium-term trend floor"}}
+      {{"label": "SMA-50", "price": {sma_50:.2f}, "note": "Medium-term trend floor"}},
+      {{"label": "SMA-200", "price": {sma_200:.2f}, "note": "Long-term bull/bear dividing line"}},
+      {{"label": "LT S1 (200d)", "price": {lt_pivot_s1:.2f}, "note": "Long-term support from 200-day pivot"}}
     ],
     "entry": {{
       "low": 0.0,

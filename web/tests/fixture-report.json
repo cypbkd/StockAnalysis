@@ -161,6 +161,37 @@
           "rationale": "Bullish confluence between ATH Breakout, High-Volume Momentum Day, and Strong Trending Day signals institutional accumulation. However, the TD Sequential Sell Setup warns of potential exhaustion \u2014 this is a 5-rule day that warrants respect but not blind chasing.",
           "strategy": "Do not chase the breakout above $347. Wait for a consolidation or pullback to the $318-$330 S1 Pivot zone. If the dip holds with declining volume, that is the optimal entry for a continuation trade. Hard stop below $290 (EMA-20). If volume surges above 3x average on any up-day, the breakout may extend toward R2 at $365."
         }
+      },
+      "technicalData": {
+        "sessionOpen": 305.4,
+        "sessionHigh": 349.1,
+        "sessionLow": 302.8,
+        "prevOpen": 305.0,
+        "prevClose": 305.2,
+        "prevHigh": 312.5,
+        "prevLow": 300.1,
+        "volumeRatio": 2.11,
+        "rsi14": 68.4,
+        "ema20": 298.4,
+        "sma20": 295.2,
+        "sma50": 270.2,
+        "sma200": 218.5,
+        "high52w": 347.81,
+        "low52w": 117.73,
+        "pivotPoint": 339.3,
+        "pivotR1": 365.2,
+        "pivotR2": 382.6,
+        "pivotS1": 318.5,
+        "pivotS2": 300.8,
+        "high200d": 347.81,
+        "low200d": 117.73,
+        "ltR1": 478.3,
+        "ltR2": 608.9,
+        "ltS1": 87.2,
+        "ltS2": 0.0,
+        "earningsDate": "2026-04-28",
+        "earningsInDays": 3,
+        "earningsTiming": "After Close"
       }
     },
     {
@@ -6379,7 +6410,7 @@
   "optionsSignals": [
     {
       "symbol": "AAPL",
-      "strategy": "Cash-secured put — sell $257 put",
+      "strategy": "Cash-secured put \u2014 sell $257 put",
       "expiration": "2026-05-16",
       "score": 85,
       "highlighted": true,
@@ -6387,7 +6418,7 @@
     },
     {
       "symbol": "META",
-      "strategy": "Cash-secured put — sell $641 put",
+      "strategy": "Cash-secured put \u2014 sell $641 put",
       "expiration": "2026-05-16",
       "score": 80,
       "highlighted": true,
@@ -6395,7 +6426,7 @@
     },
     {
       "symbol": "MSFT",
-      "strategy": "Cash-secured put — sell $403 put",
+      "strategy": "Cash-secured put \u2014 sell $403 put",
       "expiration": "2026-05-16",
       "score": 78,
       "highlighted": true,
@@ -6403,7 +6434,7 @@
     },
     {
       "symbol": "GOOGL",
-      "strategy": "Cash-secured put — sell $327 put",
+      "strategy": "Cash-secured put \u2014 sell $327 put",
       "expiration": "2026-05-16",
       "score": 72,
       "highlighted": false,
