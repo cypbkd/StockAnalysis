@@ -39,7 +39,8 @@ const MOCK_ANALYSIS = {
     eps: 8.22,
     forwardEps: 10.94,
     earningsGrowth: 25.4,
-    fairPrice: 621.68,
+    // 8.22 × (8.5 + 2×25.4) × 4.4/4.7 = 8.22 × 59.3 × 0.9362 ≈ 456.28
+    fairPrice: 456.28,
     bondYield: 4.7,
   },
 };

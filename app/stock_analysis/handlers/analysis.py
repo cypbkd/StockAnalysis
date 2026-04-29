@@ -169,6 +169,7 @@ def _find_signal_data(s3, bucket: str, report_date: str, ticker: str):
                 "pivot_s2":       tech.get("pivotS2"),
                 "high_200d":      tech.get("high200d"),
                 "low_200d":       tech.get("low200d"),
+                "open_200d":      tech.get("open200d"),
                 "lt_pivot_r1":    tech.get("ltR1"),
                 "lt_pivot_r2":    tech.get("ltR2"),
                 "lt_pivot_s1":    tech.get("ltS1"),
@@ -206,7 +207,7 @@ def _fetch_fundamentals(ticker: str) -> dict:
         bond_yield = 4.4  # fallback
         try:
             tnx = yf.Ticker("^TNX")
-            tnx_price = tnx.info.get("regularMarketPrice") or tnx.fast_info.get("lastPrice")
+            tnx_price = tnx.info.get("regularMarketPrice") or getattr(tnx.fast_info, "lastPrice", None)
             if tnx_price:
                 bond_yield = float(tnx_price)
         except Exception:

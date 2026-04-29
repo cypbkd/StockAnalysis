@@ -268,6 +268,7 @@ def _extract_technical_data(metrics: Mapping[str, Any]) -> Dict[str, Any]:
         # 200-day range + LT pivots
         "high200d": "high_200d",
         "low200d": "low_200d",
+        "open200d": "open_200d",
         "ltR1": "lt_pivot_r1",
         "ltR2": "lt_pivot_r2",
         "ltS1": "lt_pivot_s1",

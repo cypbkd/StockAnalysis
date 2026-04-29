@@ -485,8 +485,8 @@ test('renderSymbolDetail renders long-term S/R section when ltR1 is present', ()
   const html = renderSymbolDetail(detailReportWithTechData, 'NVDA');
   assert.match(html, /lt-levels-section/);
   assert.match(html, /200-Day S\/R Map/);
-  assert.match(html, /LT R1/);
-  assert.match(html, /SMA-200/);
+  assert.match(html, /LT Pivots/);
+  assert.match(html, /200-Day Range/);
 });
 
 test('renderSymbolDetail renders short-term daily session section when session data present', () => {
@@ -523,10 +523,14 @@ test('renderSymbolDetail renders short-term daily session section when session d
   });
   const html = renderSymbolDetail(reportWithSession, 'NVDA');
   assert.match(html, /Daily Session.*Pivot Levels/s);
-  assert.match(html, /Session High/);
-  assert.match(html, /Pivot \(P\)/);
-  assert.match(html, /R1 \(Pivot\)/);
-  assert.match(html, /S2 \(Pivot\)/);
+  assert.match(html, /Today/);
+  assert.match(html, /Previous Day/);
+  assert.match(html, /Pivots/);
+  // Today column shows lastPrice as Close
+  assert.match(html, /872\.45/);
+  // Pivot labels are compact
+  assert.match(html, /\bR1\b/);
+  assert.match(html, /\bS2\b/);
 });
 
 test('renderSymbolDetail renders TradingView chart container with symbol', () => {
