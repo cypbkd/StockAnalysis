@@ -161,6 +161,8 @@ def _find_signal_data(s3, bucket: str, report_date: str, ticker: str):
                 "sma_20":         tech.get("sma20"),
                 "sma_50":         tech.get("sma50"),
                 "sma_200":        tech.get("sma200"),
+                "prev_sma_20":    tech.get("prevSma20"),
+                "prev_sma_50":    tech.get("prevSma50"),
                 "high_52w":       tech.get("high52w"),
                 "low_52w":        tech.get("low52w"),
                 "pivot_r1":       tech.get("pivotR1"),

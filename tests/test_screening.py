@@ -206,6 +206,70 @@ def test_signal_technical_data_omits_missing_fields():
     assert "earningsDate" not in td
 
 
+def _golden_cross_rule():
+    from stock_analysis.data import RULE_CONFIGS
+    return CanonicalRule.from_mapping(RULE_CONFIGS["golden_cross"]["rule_def"])
+
+
+def _dead_cross_rule():
+    from stock_analysis.data import RULE_CONFIGS
+    return CanonicalRule.from_mapping(RULE_CONFIGS["dead_cross"]["rule_def"])
+
+
+def test_golden_cross_matches_only_on_crossover_day():
+    """Golden cross fires only when sma_20 crossed above sma_50 today (was below yesterday)."""
+    engine = DeterministicScreeningEngine()
+    rule = _golden_cross_rule()
+
+    # Crossover today: sma_20 just moved above sma_50
+    crossed_today = MarketSnapshot(
+        symbol="AAPL",
+        metrics={"close": 105, "sma_20": 101, "sma_50": 100, "prev_sma_20": 99, "prev_sma_50": 100, "rsi_14": 60},
+    )
+    # Already above for multiple days — not a fresh crossover
+    already_above = MarketSnapshot(
+        symbol="MSFT",
+        metrics={"close": 105, "sma_20": 101, "sma_50": 100, "prev_sma_20": 102, "prev_sma_50": 100, "rsi_14": 60},
+    )
+    # sma_20 still below — no cross yet
+    not_crossed = MarketSnapshot(
+        symbol="NVDA",
+        metrics={"close": 95, "sma_20": 98, "sma_50": 100, "prev_sma_20": 97, "prev_sma_50": 100, "rsi_14": 55},
+    )
+
+    results = {r.symbol: r for r in engine.screen([crossed_today, already_above, not_crossed], rule)}
+    assert results["AAPL"].matched is True
+    assert results["MSFT"].matched is False, "already above sma_50 yesterday — not a fresh crossover"
+    assert results["NVDA"].matched is False, "sma_20 still below sma_50"
+
+
+def test_dead_cross_matches_only_on_crossover_day():
+    """Dead cross fires only when sma_20 crossed below sma_50 today (was above yesterday)."""
+    engine = DeterministicScreeningEngine()
+    rule = _dead_cross_rule()
+
+    # Crossover today: sma_20 just dipped below sma_50
+    crossed_today = MarketSnapshot(
+        symbol="AAPL",
+        metrics={"close": 95, "sma_20": 99, "sma_50": 100, "prev_sma_20": 101, "prev_sma_50": 100},
+    )
+    # Already below for multiple days — not fresh
+    already_below = MarketSnapshot(
+        symbol="MSFT",
+        metrics={"close": 95, "sma_20": 99, "sma_50": 100, "prev_sma_20": 98, "prev_sma_50": 100},
+    )
+    # sma_20 still above — no cross yet
+    not_crossed = MarketSnapshot(
+        symbol="NVDA",
+        metrics={"close": 105, "sma_20": 102, "sma_50": 100, "prev_sma_20": 103, "prev_sma_50": 100},
+    )
+
+    results = {r.symbol: r for r in engine.screen([crossed_today, already_below, not_crossed], rule)}
+    assert results["AAPL"].matched is True
+    assert results["MSFT"].matched is False, "already below sma_50 yesterday — not a fresh crossover"
+    assert results["NVDA"].matched is False, "sma_20 still above sma_50"
+
+
 def test_build_nightly_report_defaults_news_summary_to_empty_string():
     report = build_nightly_report(
         trade_date=date(2026, 4, 23),

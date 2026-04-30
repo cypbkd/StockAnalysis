@@ -137,8 +137,8 @@ All 14 rules run against every deduplicated ticker on each nightly run. A ticker
 | ID | Rule Name | Rule logic |
 |---|---|---|
 | `ma_stack` | Bullish MA Stack | close > EMA-20 AND EMA-20 > SMA-50 AND RSI-14 < 75 |
-| `golden_cross` | Golden Cross State | SMA-20 > SMA-50 AND close > SMA-20 AND RSI-14 < 70 |
-| `dead_cross` | Dead Cross State | SMA-20 < SMA-50 AND close < SMA-20 |
+| `golden_cross` | Golden Cross | SMA-20 > SMA-50 AND prev_sma_20 <= prev_sma_50 (fresh crossover today) AND close > SMA-20 AND RSI-14 < 70 |
+| `dead_cross` | Dead Cross | SMA-20 < SMA-50 AND prev_sma_20 >= prev_sma_50 (fresh crossover today) AND close < SMA-20 |
 | `ath_breakout` | ATH Breakout | close >= high_52w AND volume_ratio >= 1.5 |
 | `near_ath` | Near-ATH Consolidation | close_to_ath_pct <= 3.0 AND volume_ratio < 1.2 AND RSI-14 < 65 |
 | `oversold_dip` | Oversold Dip in Uptrend | close > SMA-50 AND RSI-14 < 40 |

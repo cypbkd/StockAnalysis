@@ -256,6 +256,8 @@ def _extract_technical_data(metrics: Mapping[str, Any]) -> Dict[str, Any]:
         "sma20": "sma_20",
         "sma50": "sma_50",
         "sma200": "sma_200",
+        "prevSma20": "prev_sma_20",
+        "prevSma50": "prev_sma_50",
         # 52-week range
         "high52w": "high_52w",
         "low52w": "low_52w",
