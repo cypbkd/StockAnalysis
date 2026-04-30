@@ -155,6 +155,7 @@ def build_nightly_report(
     report_history: Sequence[Mapping[str, Any]] = (),
     universe_name: str = "SPY 500",
     news_summary: str = "",
+    trending_tickers: Sequence[Mapping[str, Any]] = (),
 ) -> Dict[str, Any]:
     watchlist_symbol_count = sum(len(watchlist.symbols) for watchlist in watchlists)
     matched_results = [result for result in stock_results if result.matched]
@@ -181,6 +182,7 @@ def build_nightly_report(
         },
         "highlights": list(highlights),
         "newsSummary": news_summary,
+        "trendingTickers": list(trending_tickers),
         "reportHistory": list(report_history),
         "watchlists": [
             {

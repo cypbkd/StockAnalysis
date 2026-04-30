@@ -24,6 +24,7 @@ from stock_analysis.news import generate_news_summary
 from stock_analysis.options import build_options_ideas
 from stock_analysis.rules import CanonicalRule
 from stock_analysis.screening import build_nightly_report, OptionIdea, ReportWatchlist
+from stock_analysis.trending import build_trending_tickers
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -193,17 +194,26 @@ def handler(event: dict, context: object) -> dict:
 
     logger.info("Built %d option ideas, %d earnings watch entries", len(option_ideas), len(_build_earnings_watch(earnings_candidates)))
 
-    # 10. News summary for high-priority tickers
+    # 10. Trending tickers from Yahoo Finance (top movers over past 3 days)
+    logger.info("Fetching trending tickers from Yahoo Finance")
+    trending_tickers = build_trending_tickers(run_date)
+    logger.info("Built %d trending tickers", len(trending_tickers))
+
+    # 11. News summary — combine high-priority screener picks with trending tickers
+    # so Gemini has context on both technically strong names and market buzz.
     high_priority_symbols = [
         r["symbol"] for r in matched_results
         if r["match_count"] >= 5
     ][:8]
-    logger.info("Requesting news summary for %d high-priority symbols: %s",
-                len(high_priority_symbols), ", ".join(high_priority_symbols) or "none")
-    news_summary = generate_news_summary(high_priority_symbols, run_date)
+    trending_symbols = [t["symbol"] for t in trending_tickers]
+    # Merge, deduplicate, cap at 10 so the prompt stays focused
+    news_symbols = list(dict.fromkeys(high_priority_symbols + trending_symbols))[:10]
+    logger.info("Requesting news summary for %d symbols (high-priority + trending): %s",
+                len(news_symbols), ", ".join(news_symbols) or "none")
+    news_summary = generate_news_summary(news_symbols, run_date)
     logger.info("News summary: %d chars", len(news_summary))
 
-    # 11. Build and publish the report
+    # 12. Build and publish the report
     report = build_nightly_report(
         trade_date=date.fromisoformat(run_date),
         timezone="America/Los_Angeles",
@@ -216,6 +226,7 @@ def handler(event: dict, context: object) -> dict:
         report_history=report_history,
         universe_name="SPY 500",
         news_summary=news_summary,
+        trending_tickers=trending_tickers,
     )
 
     report_json = json.dumps(report, indent=2)

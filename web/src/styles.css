@@ -743,6 +743,57 @@ dd {
   text-transform: uppercase;
 }
 
+/* ── Trending Tickers section ─────────────────────────────── */
+
+.trending-card-rank {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--neutral-500, #888);
+  letter-spacing: 0.04em;
+}
+
+.trend-symbol-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.trend-symbol-link:hover {
+  text-decoration: underline;
+  color: var(--accent);
+}
+
+.trend-company {
+  display: block;
+  margin-top: 4px;
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--neutral-600, #666);
+  letter-spacing: 0.01em;
+}
+
+.trend-price-col {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.trend-price {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.trend-change-positive {
+  color: #2a6e3f;
+}
+
+.trend-change-negative {
+  color: var(--accent);
+}
+
 /* ── Earnings weekly calendar ─────────────────────────────── */
 
 .ec-week-label {

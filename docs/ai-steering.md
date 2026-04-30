@@ -10,7 +10,8 @@ A cloud-based nightly stock and options analysis system. Each US trading day at 
 
 1. Screens the S&P 500 + FANG + personal portfolio watchlists against **14 technical rules** in a single deduplicated pass
 2. Fetches upcoming earnings dates for every screened ticker
-3. Fetches Yahoo Finance headlines for top-priority tickers and generates a **6-8 sentence market summary via Gemini**
+3. Fetches the Yahoo Finance trending ticker list and enriches each with 3-day price/volume data + headlines (`trending.py`)
+4. Fetches Yahoo Finance headlines for top high-priority + trending tickers and generates a **6-8 sentence market summary via Gemini**
 4. Builds a report JSON and publishes it to a static CloudFront dashboard
 5. Automatically invalidates the CloudFront cache so visitors always get the fresh report
 
@@ -29,6 +30,7 @@ app/                        Python 3.11 — Lambda handlers + domain logic
     data.py                 COMPANY_NAMES, RULE_CONFIGS, load_watchlists(), yfinance fetcher + indicator calc
     earnings.py             Parallel yfinance calendar fetch → {days, date, timing} per ticker
     rules.py                CanonicalRule, RuleCondition, SUPPORTED_FIELDS
+    trending.py             Yahoo Finance trending list fetch + 3-day price/volume enrichment (build_trending_tickers)
     news.py                 Yahoo Finance RSS fetch + Gemini summarization (generate_news_summary)
     details.py              Gemini per-ticker trading brief (generate_ticker_analysis) → detailAnalysis JSON
     screening.py            DeterministicScreeningEngine, build_nightly_report
@@ -98,7 +100,9 @@ web/tests/                  JS unit tests (node:test)
               "high priority" = matched ≥ 5 rules; "matched" = 1–4 rules
               builds earnings_watch from symbols with earnings_date in Mon–Fri of current week
                 (no cap on count; each entry includes date, weekday, timing fields)
-              fetches Yahoo Finance RSS headlines for top 8 high-priority tickers
+              fetches Yahoo Finance trending list → enriches with 3-day price/volume data + headlines → trendingTickers[]
+              merges high-priority screener symbols + trending symbols (deduped, capped 10) for news context
+              fetches Yahoo Finance RSS headlines for combined set
               calls Gemini (gemini-2.5-flash, thinking disabled) → 6-8 sentence newsSummary
               each signal now includes technicalData (volumeRatio, rsi14, ema20, sma50,
                 high52w, low52w, pivotR1/R2/S1/S2, earningsDate/InDays/Timing) for on-demand analysis
@@ -364,7 +368,8 @@ Three alarms fire into this topic:
 - `WATCHLISTS` and `_SP500_TICKERS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there (both subsequently removed in favour of DynamoDB)
 - **DynamoDB-backed watchlists** — `WATCHLISTS` constant removed from `data.py`; replaced by `load_watchlists(table_name)` which scans the `{ENV_NAME}-watchlists` table (version="latest" items). Coordinator calls it at runtime. Seed with `scripts/seed-watchlists.sh`. New watchlists no longer need a redeploy.
 - **QQQ + DJIA watchlists** added to `seed-watchlists.sh` (`qqq` ≈ 90 Nasdaq-100 tickers; `djia` = 30 DJIA tickers); 17 new company name entries added to `COMPANY_NAMES` in `data.py` (ARM, ASML, AZN, CHKP, CRWD, DDOG, ILMN, MELI, MRVL, MSTR, PDD, TEAM, TTD, WDAY, ZM, ZS, and ABNB)
-- **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for top 8 high-priority tickers, calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
+- **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for up to 10 symbols (high-priority screener picks + trending tickers, deduped), calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
+- **Trending Tickers section** (`trending.py`): fetches Yahoo Finance daily trending list (`/v1/finance/trending/US`), enriches each symbol with 3-day return, 1-day return, and volume ratio from yfinance, plus a top headline; stored in `report.json` as `trendingTickers[]`; rendered in the dashboard as a dedicated "Trending Tickers" section (Market Buzz label) above Today's Highlights and Watchlists, always shown regardless of rule matches; rank badge, positive/negative coloring, company name, and headline included per card; trending symbols are also merged into the Gemini news summary prompt so the AI considers market buzz alongside high-priority screener names
 - **On-demand ticker analysis** (`details.py` + `handlers/analysis.py`): Lambda Function URL (open CORS) called by the browser when user opens a ticker detail page; checks S3 cache at `analyses/{date}/{ticker}.json`; on miss calls Gemini (`gemini-2.5-flash`, JSON mode, 2000 tokens) → `{ summary, rules, priceTargets, verdict, fundamentals }` and caches to S3; `config.json` (written to S3 by deploy script from CloudFormation output) tells the frontend the Function URL; local dev server serves mock config + mock analysis endpoint; each signal now includes `technicalData` (19 metrics) so the analysis Lambda can build the prompt without reading chunk files
 - **Fundamentals on-demand** (`handlers/analysis.py` → `_fetch_fundamentals`): on cache miss (or cache hit without fundamentals), fetches `trailingPE`, `forwardPE`, `trailingEps`, `forwardEps`, `earningsGrowth` from `yfinance.Ticker.info`; computes **Revised Graham fair value** = `EPS × (8.5 + 2g) × 4.4 / Y` where Y is the current 10-year Treasury yield from `yf.Ticker("^TNX")` (falls back to 4.4% if unavailable); growth `g` clamped 0–50%; returns `fairPrice` + `bondYield` in the `fundamentals` dict and displays the formula note in the "Fundamental Snapshot" UI block
 - **Long-term (200-day) S/R levels** (`data.py`): `fetch_market_data` now computes `sma_200`, `high_200d`, `low_200d`, and standard pivot-point formula applied to the 200-day H/L range → `lt_pivot_r1/r2/s1/s2` (S2 clamped ≥ 0); also stores full current-session OHLC (`open`, `high`, `low`) and prior-session OHLC (`prev_open`, `prev_high`, `prev_low`); stored in `technicalData` as `sma200`, `high200d`, `low200d`, `ltR1/R2/S1/S2`, `sessionOpen/High/Low`, `prevOpen/Close/High/Low`, `pivotPoint`

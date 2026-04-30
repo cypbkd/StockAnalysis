@@ -18,6 +18,7 @@ export function createEmptyReport(overrides = {}) {
     },
     highlights: [],
     newsSummary: '',
+    trendingTickers: [],
     earningsChartUrl: '',
     reportHistory: [],
     watchlists: [],
