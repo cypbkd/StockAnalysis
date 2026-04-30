@@ -262,14 +262,15 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "golden_cross": {
         "name": "Golden Cross",
         "priority": "high",
-        "rule_summary": "SMA-20 above SMA-50 with price following through — classic bullish trend confirmation",
+        "rule_summary": "SMA-20 just crossed above SMA-50 today (was below yesterday) with price follow-through",
         "rule_def": {
             "logic": "and",
-            "name": "Golden Cross State",
-            "description": "SMA-20 crossed above SMA-50 and price is above SMA-20 with RSI in healthy range — trend confirmed.",
-            "source_text": "Find names where SMA-20 > SMA-50, close > SMA-20, and RSI < 70 — golden cross with price follow-through.",
+            "name": "Golden Cross",
+            "description": "SMA-20 crossed above SMA-50 today (prev day SMA-20 was <= SMA-50) — fresh crossover with price above SMA-20 and RSI in healthy range.",
+            "source_text": "Find names where SMA-20 crossed above SMA-50 today (prev_sma_20 <= prev_sma_50), close > SMA-20, and RSI < 70 — fresh golden cross with price follow-through.",
             "conditions": [
                 {"field": "sma_20", "op": ">", "value_from": "sma_50"},
+                {"field": "prev_sma_20", "op": "<=", "value_from": "prev_sma_50"},
                 {"field": "close", "op": ">", "value_from": "sma_20"},
                 {"field": "rsi_14", "op": "<", "value": 70},
             ],
@@ -278,14 +279,15 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "dead_cross": {
         "name": "Dead Cross",
         "priority": "high",
-        "rule_summary": "SMA-20 below SMA-50 with price below SMA-20 — bearish trend warning",
+        "rule_summary": "SMA-20 just crossed below SMA-50 today (was above yesterday) with price breaking down",
         "rule_def": {
             "logic": "and",
-            "name": "Dead Cross State",
-            "description": "SMA-20 has crossed below SMA-50 and price is below SMA-20 — full bearish MA alignment, trend deteriorating.",
-            "source_text": "Find names where SMA-20 < SMA-50 and close < SMA-20 — dead cross confirmed with price breaking down.",
+            "name": "Dead Cross",
+            "description": "SMA-20 crossed below SMA-50 today (prev day SMA-20 was >= SMA-50) — fresh bearish crossover with price below SMA-20.",
+            "source_text": "Find names where SMA-20 crossed below SMA-50 today (prev_sma_20 >= prev_sma_50) and close < SMA-20 — fresh dead cross with price breaking down.",
             "conditions": [
                 {"field": "sma_20", "op": "<", "value_from": "sma_50"},
+                {"field": "prev_sma_20", "op": ">=", "value_from": "prev_sma_50"},
                 {"field": "close", "op": "<", "value_from": "sma_20"},
             ],
         },
@@ -529,6 +531,9 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
             change_pct = round((close_today - close_prev) / close_prev * 100, 2)
             sma_20 = round(float(close_s.iloc[-20:].mean()), 2)
             sma_50 = round(float(close_s.iloc[-50:].mean()), 2) if len(close_s) >= 50 else sma_20
+            # Previous day's SMAs — needed to detect crossover events (not just states)
+            prev_sma_20 = round(float(close_s.iloc[-21:-1].mean()), 2)
+            prev_sma_50 = round(float(close_s.iloc[-51:-1].mean()), 2) if len(close_s) >= 51 else prev_sma_20
             ema_20 = round(float(close_s.ewm(span=20, adjust=False).mean().iloc[-1]), 2)
             rsi = compute_rsi(close_s)
             avg_vol = float(vol_s.iloc[-20:].mean()) if len(vol_s) >= 20 else float(vol_s.mean())
@@ -597,6 +602,8 @@ def fetch_market_data(tickers: List[str]) -> Dict[str, dict]:
                 # Moving averages
                 "sma_20": sma_20,
                 "sma_50": sma_50,
+                "prev_sma_20": prev_sma_20,
+                "prev_sma_50": prev_sma_50,
                 "ema_20": ema_20,
                 "rsi_14": rsi,
                 # Volume
