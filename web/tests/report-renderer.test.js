@@ -538,3 +538,32 @@ test('renderSymbolDetail renders TradingView chart container with symbol', () =>
   assert.match(html, /tradingview-chart-container/);
   assert.match(html, /data-symbol="NVDA"/);
 });
+
+test('renderReportApp date-only reportDate displays the correct calendar day (no UTC midnight shift)', () => {
+  // "2026-04-29" must render as "April 29" not "April 28" in negative-offset timezones
+  const html = renderReportApp({ ...sampleReport, reportDate: '2026-04-29' });
+  assert.match(html, /April 29, 2026/);
+  assert.doesNotMatch(html, /April 28, 2026/);
+});
+
+test('renderEarningsCalendar marks only the report-date day tickers as ec-priority-very-high', () => {
+  const report = createEmptyReport({
+    reportDate: '2026-04-29',
+    earningsWatch: [
+      { symbol: 'MON', companyName: 'Monday Co', date: '2026-04-27', weekday: 'Monday', timing: 'TBD', priority: 'very high', when: 'In 0 days', focus: '' },
+      { symbol: 'WED', companyName: 'Wednesday Co', date: '2026-04-29', weekday: 'Wednesday', timing: 'TBD', priority: 'very high', when: 'Today', focus: '' },
+      { symbol: 'THU', companyName: 'Thursday Co', date: '2026-04-30', weekday: 'Thursday', timing: 'TBD', priority: 'very high', when: 'Tomorrow', focus: '' },
+    ],
+  });
+  const html = renderReportApp(report);
+
+  // Wednesday (today) ticker's li must carry ec-priority-very-high directly before the WED link
+  assert.match(html, /ec-ticker-item ec-priority-very-high[^>]*>[\s\S]{0,200}?ec-symbol[^>]*>WED/);
+  // Monday and Thursday tickers must not have ec-priority-very-high on their li
+  assert.doesNotMatch(html, /ec-ticker-item ec-priority-very-high[^>]*>[\s\S]{0,200}?ec-symbol[^>]*>MON/);
+  assert.doesNotMatch(html, /ec-ticker-item ec-priority-very-high[^>]*>[\s\S]{0,200}?ec-symbol[^>]*>THU/);
+  // Wednesday column header must carry ec-day-today; Monday and Thursday must not
+  assert.match(html, /ec-day-col[^"]*ec-day-today[^>]*>[\s\S]{0,100}?ec-day-header[^>]*>Wednesday/);
+  assert.doesNotMatch(html, /ec-day-col[^"]*ec-day-today[^>]*>[\s\S]{0,100}?ec-day-header[^>]*>Monday/);
+  assert.doesNotMatch(html, /ec-day-col[^"]*ec-day-today[^>]*>[\s\S]{0,100}?ec-day-header[^>]*>Thursday/);
+});

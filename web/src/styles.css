@@ -793,6 +793,11 @@ dd {
   color: var(--neutral-500);
 }
 
+.ec-day-today .ec-day-header {
+  background: var(--accent);
+  color: var(--paper);
+}
+
 .ec-none {
   display: flex;
   align-items: center;

@@ -76,6 +76,8 @@ def handler(event: dict, context: object) -> dict:
     matched_results: List[Dict[str, Any]] = []
     watchlist_signal_counts: Dict[str, int] = {}
     earnings_candidates: List[Dict[str, Any]] = []
+    all_chunk_symbols: set = set()
+    ticker_metrics_map: Dict[str, Dict] = {}
 
     today = date.fromisoformat(run_date)
     week_monday, week_friday = _current_week_bounds(today)
@@ -84,7 +86,11 @@ def handler(event: dict, context: object) -> dict:
         logger.debug("Reading chunk: %s", key)
         chunk = json.loads(s3.get_object(Bucket=bucket, Key=key)["Body"].read())
         for r in chunk.get("stock_results", []):
+            sym = r["symbol"]
             metrics = r.get("metrics", {})
+            all_chunk_symbols.add(sym)
+            if sym not in ticker_metrics_map:
+                ticker_metrics_map[sym] = metrics
             earnings_date_str = metrics.get("earnings_date")
 
             if earnings_date_str:
@@ -92,8 +98,8 @@ def handler(event: dict, context: object) -> dict:
                     edate = date.fromisoformat(earnings_date_str)
                     if week_monday <= edate <= week_friday:
                         earnings_candidates.append({
-                            "symbol": r["symbol"],
-                            "companyName": metrics.get("company_name", r["symbol"]),
+                            "symbol": sym,
+                            "companyName": metrics.get("company_name", sym),
                             "close": metrics.get("close", 0),
                             "rsi": metrics.get("rsi_14", 0),
                             "days": metrics.get("earnings_in_days", (edate - today).days),
@@ -111,7 +117,7 @@ def handler(event: dict, context: object) -> dict:
                 watchlist_signal_counts[wl_id] = watchlist_signal_counts.get(wl_id, 0) + 1
             best = max(matched_rules, key=lambda x: x["score"])
             matched_results.append({
-                "symbol": r["symbol"],
+                "symbol": sym,
                 "score": best["score"],
                 "reasons": best["reasons"],
                 "metrics": metrics,
@@ -120,8 +126,17 @@ def handler(event: dict, context: object) -> dict:
                 "watchlists": ticker_watchlists,
             })
 
+    # Supplement earnings_candidates from Earnings API S3 cache for past days in the week
+    # (workers may have missed them if they ran after the earnings date passed)
+    supplemental = _supplement_earnings_from_api_cache(
+        s3, bucket, week_monday, today, earnings_candidates,
+        all_chunk_symbols, ticker_metrics_map,
+    )
+    earnings_candidates.extend(supplemental)
+
     matched_results.sort(key=lambda x: (-x["match_count"], -x["score"], x["symbol"]))
-    logger.info("Total matched: %d signals, %d earnings candidates", len(matched_results), len(earnings_candidates))
+    logger.info("Total matched: %d signals, %d earnings candidates (%d supplemented from API cache)",
+                len(matched_results), len(earnings_candidates), len(supplemental))
 
     # 4. Build ReportWatchlist objects from manifest watchlists
     watchlists: List[ReportWatchlist] = [
@@ -316,3 +331,57 @@ def _current_week_bounds(today: date):
     else:
         monday = today - timedelta(days=weekday)
     return monday, monday + timedelta(days=4)
+
+
+def _supplement_earnings_from_api_cache(
+    s3,
+    bucket: str,
+    week_monday: date,
+    today: date,
+    existing_candidates: List[Dict[str, Any]],
+    universe_symbols: set,
+    ticker_metrics_map: Dict[str, Dict],
+) -> List[Dict[str, Any]]:
+    """Read the Earnings API S3 cache for past days in the current week and add any
+    universe tickers whose earnings date workers missed (e.g. because the earnings
+    date had already passed when the workers ran).  No live API calls are made here —
+    only cached files that workers already wrote are used.
+    """
+    existing = {c["symbol"] for c in existing_candidates}
+    supplemental: List[Dict[str, Any]] = []
+    timing_map = [("pre", "Before Open"), ("after", "After Close"), ("notSupplied", "TBD")]
+
+    d = week_monday
+    while d < today:  # past days only; today's data comes from workers
+        key = f"raw/earnings-api/date={d.isoformat()}/calendar.json"
+        try:
+            payload = json.loads(s3.get_object(Bucket=bucket, Key=key)["Body"].read())
+        except Exception:
+            d += timedelta(days=1)
+            continue
+
+        days_val = (d - today).days
+        weekday_name = _WEEKDAY_NAMES[d.weekday()]
+        for timing_key, timing_label in timing_map:
+            for row in payload.get(timing_key, []):
+                sym = str(row.get("symbol") or "").strip().upper()
+                if not sym or sym not in universe_symbols or sym in existing:
+                    continue
+                metrics = ticker_metrics_map.get(sym, {})
+                supplemental.append({
+                    "symbol": sym,
+                    "companyName": metrics.get("company_name", sym),
+                    "close": metrics.get("close", 0),
+                    "rsi": metrics.get("rsi_14", 0),
+                    "days": days_val,
+                    "date": d.isoformat(),
+                    "weekday": weekday_name,
+                    "timing": timing_label,
+                })
+                existing.add(sym)
+
+        logger.info("API cache supplement: %s yielded %d new entries so far",
+                    d.isoformat(), len(supplemental))
+        d += timedelta(days=1)
+
+    return supplemental

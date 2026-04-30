@@ -40,7 +40,12 @@ function formatDisplayDate(value) {
     return 'Latest Edition';
   }
 
-  const parsed = new Date(sanitizeIso(value));
+  const sanitized = sanitizeIso(value);
+  // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight, which shifts the
+  // displayed day by -1 in negative-offset timezones like PDT (UTC-7).
+  // Append local noon so the date renders as the intended calendar day.
+  const toParse = /^\d{4}-\d{2}-\d{2}$/.test(sanitized) ? sanitized + 'T12:00:00' : sanitized;
+  const parsed = new Date(toParse);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
@@ -229,18 +234,29 @@ function renderEarningsCalendar(earningsWatch, reportDate) {
     }
   }
 
+  // Determine which weekday matches the report date so its column header gets highlighted.
+  let todayWeekday = null;
+  if (reportDate) {
+    const d = new Date(reportDate + 'T12:00:00');
+    const idx = d.getDay(); // 0=Sun,1=Mon…5=Fri,6=Sat
+    if (idx >= 1 && idx <= 5) todayWeekday = WEEKDAYS[idx - 1];
+  }
+
   const PRIMARY_TIMINGS = ['Before Open', 'After Close'];
 
   const dayCols = WEEKDAYS.map(day => {
     const slots = grid[day];
     const hasAny = TIMINGS.some(t => slots[t].length > 0);
 
-    const renderTickerList = items => items.map(e => `
-      <li class="ec-ticker-item ${priorityClass(e.priority)}">
-        <a href="${yahooUrl(e.symbol)}" target="_blank" rel="noopener noreferrer" class="ec-symbol">${escapeHtml(e.symbol)}</a>
-        ${e.companyName && e.companyName !== e.symbol ? `<span class="ec-company">${escapeHtml(e.companyName)}</span>` : ''}
-      </li>
-    `).join('');
+    const renderTickerList = items => items.map(e => {
+      const isToday = reportDate && e.date === reportDate;
+      return `
+        <li class="ec-ticker-item ${isToday ? 'ec-priority-very-high' : ''}">
+          <a href="${yahooUrl(e.symbol)}" target="_blank" rel="noopener noreferrer" class="ec-symbol">${escapeHtml(e.symbol)}</a>
+          ${e.companyName && e.companyName !== e.symbol ? `<span class="ec-company">${escapeHtml(e.companyName)}</span>` : ''}
+        </li>
+      `;
+    }).join('');
 
     const primarySlots = PRIMARY_TIMINGS.map(timing => {
       const items = slots[timing];
@@ -262,8 +278,9 @@ function renderEarningsCalendar(earningsWatch, reportDate) {
       </div>
     ` : '';
 
+    const isTodayCol = day === todayWeekday;
     return `
-      <div class="ec-day-col${hasAny ? '' : ' ec-day-empty'}">
+      <div class="ec-day-col${hasAny ? '' : ' ec-day-empty'}${isTodayCol ? ' ec-day-today' : ''}">
         <div class="ec-day-header">${escapeHtml(day)}</div>
         ${hasAny
           ? `<div class="ec-day-body">${primarySlots}</div>${tbdHtml}`

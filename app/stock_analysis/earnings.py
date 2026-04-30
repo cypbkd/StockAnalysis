@@ -43,7 +43,7 @@ def fetch_earnings_dates(tickers: List[str], run_date: str = None, max_workers: 
             for ts in earnings_dates:
                 d = ts.date() if hasattr(ts, "date") else datetime.fromisoformat(str(ts)).date()
                 days = (d - today).days
-                if days >= -1:
+                if days >= -7:
                     return ticker, {"days": days, "date": d.isoformat(), "timing": _infer_timing(ts)}
             return ticker, None
         except Exception as exc:
