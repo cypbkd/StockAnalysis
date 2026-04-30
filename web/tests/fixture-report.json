@@ -26,6 +26,58 @@
     "Earnings this week: ARE, AVB, BRO, CDNS, CINF, DPZ, NUE, PSA \u2014 watch for elevated implied volatility"
   ],
   "newsSummary": "Today's headlines for AMD highlight the company's robust performance within the artificial intelligence sector. AMD has already seen a significant 26% gain this year, with analysts suggesting further upside, underscoring its strong position in the AI market. The news also touches on broader industry dynamics, with the \"Great Rotation\" out of tech seemingly fading, positioning AI growth stocks like AMD to benefit from renewed investor interest in the sector. Furthermore, a curious development involving Oracle's canceled Nvidia server order at Supermicro (SMCI) is noted, potentially altering investment narratives around AI infrastructure, which could indirectly benefit or affect perceptions of AMD's competitive landscape depending on how the market interprets this shift. Essentially, AMD is seen as a high-growth AI stock that continues to attract attention amid broader positive sentiment for tech and a dynamic AI infrastructure market.",
+  "trendingTickers": [
+    {
+      "symbol": "NVDA",
+      "companyName": "NVIDIA Corporation",
+      "trendRank": 1,
+      "lastPrice": 875.40,
+      "change1d": 4.82,
+      "change3d": 11.35,
+      "volumeRatio": 2.14,
+      "headlines": ["Nvidia surges as AI chip demand beats expectations", "NVDA options volume spikes ahead of earnings"]
+    },
+    {
+      "symbol": "TSLA",
+      "companyName": "Tesla Inc.",
+      "trendRank": 2,
+      "lastPrice": 172.50,
+      "change1d": -2.30,
+      "change3d": 6.85,
+      "volumeRatio": 1.87,
+      "headlines": ["Tesla reports record deliveries in Q1 2026"]
+    },
+    {
+      "symbol": "META",
+      "companyName": "Meta Platforms Inc.",
+      "trendRank": 3,
+      "lastPrice": 512.20,
+      "change1d": 1.45,
+      "change3d": 3.20,
+      "volumeRatio": 1.22,
+      "headlines": ["Meta's AI assistant reaches 1 billion users", "Advertising revenue beats Wall Street estimates"]
+    },
+    {
+      "symbol": "AMD",
+      "companyName": "Advanced Micro Devices Inc.",
+      "trendRank": 4,
+      "lastPrice": 145.75,
+      "change1d": 3.10,
+      "change3d": 8.90,
+      "volumeRatio": 1.95,
+      "headlines": ["AMD gains market share in AI data center chips"]
+    },
+    {
+      "symbol": "AAPL",
+      "companyName": "Apple Inc.",
+      "trendRank": 5,
+      "lastPrice": 195.30,
+      "change1d": 0.85,
+      "change3d": 2.15,
+      "volumeRatio": 0.98,
+      "headlines": ["Apple reportedly developing custom AI chips for Mac lineup"]
+    }
+  ],
   "reportHistory": [
     {
       "label": "Apr 25",

@@ -351,6 +351,69 @@ function renderBulletinsTicker(signals = []) {
   `;
 }
 
+function renderTrendingTickerCard(ticker, rank) {
+  const changeClass1d = ticker.change1d >= 0 ? 'trend-change-positive' : 'trend-change-negative';
+  const changeClass3d = ticker.change3d >= 0 ? 'trend-change-positive' : 'trend-change-negative';
+  const arrow1d = ticker.change1d >= 0 ? '▲' : '▼';
+  const arrow3d = ticker.change3d >= 0 ? '▲' : '▼';
+  const companyDisplay = ticker.companyName && ticker.companyName !== ticker.symbol
+    ? `<span>${escapeHtml(ticker.companyName)}</span>`
+    : '';
+  const headline = ticker.headlines && ticker.headlines.length
+    ? `<p class="signal-reason">${escapeHtml(ticker.headlines[0])}</p>`
+    : '';
+  return `
+    <article class="surface-card signal-card hard-shadow-hover">
+      <div class="trending-card-rank">#${escapeHtml(String(rank))}</div>
+      <div class="card-topline">
+        <div>
+          <span class="card-kicker">Trending</span>
+          <h3>
+            <a href="${yahooUrl(ticker.symbol)}" target="_blank" rel="noopener noreferrer" class="trend-symbol-link">${escapeHtml(ticker.symbol)}</a>
+            ${companyDisplay}
+          </h3>
+        </div>
+        <div class="trend-price-col">
+          <span class="trend-price font-mono">${escapeHtml(formatPrice(ticker.lastPrice))}</span>
+        </div>
+      </div>
+      <dl class="signal-meta">
+        <div>
+          <dt>1-Day</dt>
+          <dd class="font-mono ${changeClass1d}">${escapeHtml(arrow1d)} ${escapeHtml(Math.abs(ticker.change1d).toFixed(2))}%</dd>
+        </div>
+        <div>
+          <dt>3-Day</dt>
+          <dd class="font-mono ${changeClass3d}">${escapeHtml(arrow3d)} ${escapeHtml(Math.abs(ticker.change3d).toFixed(2))}%</dd>
+        </div>
+        ${ticker.volumeRatio != null ? `
+        <div>
+          <dt>Vol Ratio</dt>
+          <dd class="font-mono">${escapeHtml(ticker.volumeRatio.toFixed(2))}×</dd>
+        </div>
+        ` : ''}
+      </dl>
+      ${headline}
+    </article>
+  `;
+}
+
+function renderTrendingTickers(tickers = []) {
+  if (!tickers.length) return '';
+  return `
+    <section id="trending" class="report-section">
+      <div class="section-heading">
+        <span class="section-label">Market Buzz</span>
+        <h2>Trending Tickers</h2>
+        <p>Top movers and most-watched names on Yahoo Finance over the past 3 trading days.</p>
+      </div>
+      <div class="card-grid">
+        ${tickers.map((t, i) => renderTrendingTickerCard(t, t.trendRank ?? i + 1)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderFrontPageHighlights(highlights = []) {
   if (!highlights.length) return '';
   return `
@@ -777,6 +840,7 @@ export function renderReportApp(report) {
 
           <nav class="quick-nav" aria-label="Report sections">
             <a href="#summary">Summary</a>
+            <a href="#trending">Trending</a>
             <a href="#watchlists">Watchlists</a>
             <a href="#earnings-watch">Earnings</a>
             <a href="#stock-signals">Stocks</a>
@@ -807,6 +871,8 @@ export function renderReportApp(report) {
               ${renderMetricCard('Earnings watch', normalized.summary.earningsWatchCount)}
             </div>
           </section>
+
+          ${renderTrendingTickers(normalized.trendingTickers)}
 
           <section id="watchlists" class="report-section">
             <div class="section-heading">
