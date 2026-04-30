@@ -111,7 +111,7 @@ function applyView(report, config) {
   }
 
   const dateLabel = report.reportDate
-    ? new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(report.reportDate))
+    ? new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(report.reportDate + 'T12:00:00'))
     : 'Latest';
   document.title = `${dateLabel} Analysis Report`;
   root.innerHTML = renderReportApp(report);

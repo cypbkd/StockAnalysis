@@ -91,6 +91,24 @@ def test_fetch_earnings_dates_run_date_overrides_today(monkeypatch):
     assert result["AAPL"]["date"] == "2026-04-28"
 
 
+def test_fetch_earnings_dates_includes_past_week_days(monkeypatch):
+    """days >= -7 so Monday earnings (days=-2) are captured on a Wednesday run."""
+    fake_yfinance = SimpleNamespace()
+    fake_ticker = MagicMock()
+    # Company reported Monday April 27; run is Wednesday April 29 (days = -2)
+    fake_ticker.calendar = {"Earnings Date": [datetime(2026, 4, 27, 0, 0)]}
+    fake_yfinance.Ticker = MagicMock(return_value=fake_ticker)
+
+    monkeypatch.setattr(earnings, "fetch_earnings_api_calendar_dates", lambda dates: {})
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yfinance)
+
+    result = earnings.fetch_earnings_dates(["AAPL"], run_date="2026-04-29", max_workers=1)
+
+    assert "AAPL" in result, "Past-week earnings (days=-2) should be captured"
+    assert result["AAPL"]["days"] == -2
+    assert result["AAPL"]["date"] == "2026-04-27"
+
+
 def test_fetch_earnings_dates_only_fetches_timing_for_actual_earnings_dates(monkeypatch):
     class FixedDate(date):
         @classmethod
