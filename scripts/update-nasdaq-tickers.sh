@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Download the latest NASDAQ-listed stock symbols from nasdaqtrader.com and
-# update app/stock_analysis/data/nasdaq_tickers.json and company_names.json.
+# Periodic refresh script — NOT one-time use.
+#
+# Downloads the latest NASDAQ-listed stock symbols from nasdaqtrader.com and
+# updates app/stock_analysis/data/nasdaq_tickers.json and company_names.json.
+# Run quarterly (or whenever you want to pick up new listings / delistings),
+# commit the updated JSON files, then re-run seed-watchlists.sh to push the
+# changes to DynamoDB.
 #
 # Usage: ./scripts/update-nasdaq-tickers.sh
-#
-# Run this periodically (e.g. quarterly) to pick up new listings and delistings.
 
 set -euo pipefail
 

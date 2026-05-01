@@ -27,6 +27,23 @@ NASDAQ_JSON="$REPO_ROOT/app/stock_analysis/data/nasdaq_tickers.json"
 
 echo "Seeding table: $TABLE"
 
+# ── Remove deprecated watchlists ─────────────────────────────────────────────
+# These were removed in the May 2026 reorganization.  Explicitly delete them so
+# re-running this script never leaves stale entries behind.
+delete_watchlist_if_exists() {
+  local wl_id="$1"
+  aws dynamodb delete-item \
+    --profile stock-screener \
+    --region us-west-2 \
+    --table-name "$TABLE" \
+    --key "{\"watchlistId\":{\"S\":\"${wl_id}\"},\"version\":{\"S\":\"latest\"}}" \
+    2>/dev/null && echo "  ✗ removed deprecated watchlist: ${wl_id}" || true
+}
+
+for deprecated in qqq fang laoli hot; do
+  delete_watchlist_if_exists "$deprecated"
+done
+
 put_watchlist() {
   local wl_id="$1"
   local name="$2"
