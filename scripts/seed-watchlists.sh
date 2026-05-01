@@ -4,6 +4,11 @@
 # Usage: ./scripts/seed-watchlists.sh [--env ENV_NAME]
 #
 # Each item uses version="latest" as the active record.
+#
+# Ticker data sourced from:
+#   - S&P 500: hardcoded (stable; update manually when reconstituted)
+#   - NASDAQ: app/stock_analysis/data/nasdaq_tickers.json (refresh with scripts/update-nasdaq-tickers.sh)
+#   - DJIA: hardcoded (30 components; reconstituted infrequently)
 
 set -euo pipefail
 
@@ -16,6 +21,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 TABLE="${ENV_NAME}-watchlists"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+NASDAQ_JSON="$REPO_ROOT/app/stock_analysis/data/nasdaq_tickers.json"
+
 echo "Seeding table: $TABLE"
 
 put_watchlist() {
@@ -42,6 +51,16 @@ tickers_list() {
   for t in "$@"; do items+=("{\"S\":\"${t}\"}"); done
   local IFS=","
   echo "[${items[*]}]"
+}
+
+# Helper: convert JSON array of strings to DynamoDB List JSON
+json_to_dynamo_list() {
+  python3 -c "
+import json, sys
+tickers = json.load(sys.stdin)
+items = ['{\"S\":\"' + t + '\"}' for t in tickers]
+print('[' + ','.join(items) + ']')
+" < "$1"
 }
 
 # ── S&P 500 ──────────────────────────────────────────────────────────────────
@@ -77,17 +96,17 @@ SP500=(
 )
 put_watchlist "spy500" "S&P 500" "$(tickers_list "${SP500[@]}")"
 
-# ── Nasdaq 100 (QQQ) ─────────────────────────────────────────────────────────
-# Approximate composition as of early 2026; reconstituted annually by Nasdaq.
-QQQ=(
-  AAPL ABNB ADBE ADI ADP ADSK AEP AMAT AMD AMGN AMZN ANSS ARM ASML AVGO AXON
-  AZN BIIB BKNG CDNS CEG CHKP CMCSA COST CPRT CRWD CSCO CTAS CTSH DDOG DLTR
-  DXCM EA EXC FAST FANG FTNT GEHC GILD GOOG GOOGL HON IDXX ILMN INTC INTU
-  ISRG KDP KLAC LRCX LULU MAR MCHP MDLZ MELI META MNST MRNA MRVL MSFT MSTR
-  MU NFLX NVDA NXPI ODFL ON ORLY PANW PAYX PCAR PDD PYPL QCOM REGN ROST SBUX
-  SMCI SNPS TEAM TMUS TSLA TTD TTWO VRSK VRTX WDAY XEL ZM ZS
-)
-put_watchlist "qqq" "Nasdaq 100 (QQQ)" "$(tickers_list "${QQQ[@]}")"
+# ── NASDAQ (full exchange) ────────────────────────────────────────────────────
+# Tickers loaded from app/stock_analysis/data/nasdaq_tickers.json
+# Refresh with: ./scripts/update-nasdaq-tickers.sh
+if [[ ! -f "$NASDAQ_JSON" ]]; then
+  echo "ERROR: $NASDAQ_JSON not found. Run scripts/update-nasdaq-tickers.sh first." >&2
+  exit 1
+fi
+NASDAQ_COUNT=$(python3 -c "import json; print(len(json.load(open('$NASDAQ_JSON'))))")
+echo "  Loading NASDAQ tickers from JSON ($NASDAQ_COUNT tickers)..."
+NASDAQ_DYNAMO="$(json_to_dynamo_list "$NASDAQ_JSON")"
+put_watchlist "nasdaq" "NASDAQ" "$NASDAQ_DYNAMO"
 
 # ── DJIA ─────────────────────────────────────────────────────────────────────
 # Dow Jones Industrial Average — 30 components as of early 2026.
@@ -97,11 +116,5 @@ DJIA=(
 )
 put_watchlist "djia" "DJIA" "$(tickers_list "${DJIA[@]}")"
 
-# ── FANG+ ────────────────────────────────────────────────────────────────────
-put_watchlist "fang" "FANG+" "$(tickers_list META AMZN NFLX GOOGL MSFT NVDA AAPL TSLA)"
-
-# ── Lao Li ───────────────────────────────────────────────────────────────────
-put_watchlist "laoli" "Lao Li" "$(tickers_list TSLA NVDA AMD GOOG AAPL MSFT COST DIS BRK.B SOFI V ORCL NFLX PLTR)"
-
 echo ""
-echo "Done. Seeded 5 watchlists into $TABLE."
+echo "Done. Seeded 3 watchlists into $TABLE."

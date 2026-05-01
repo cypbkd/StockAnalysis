@@ -1,7 +1,32 @@
-"""Unit tests for load_watchlists() — DynamoDB-backed watchlist loading."""
+"""Unit tests for load_watchlists() — DynamoDB-backed watchlist loading, and COMPANY_NAMES JSON loading."""
 import sys
 import pytest
 from unittest.mock import MagicMock, patch
+
+
+# ── COMPANY_NAMES JSON loading ─────────────────────────────────────────────────
+
+def test_company_names_loads_from_json():
+    """COMPANY_NAMES must be loaded from company_names.json, not empty."""
+    import importlib
+    import stock_analysis.data as data_mod
+    importlib.reload(data_mod)
+    assert len(data_mod.COMPANY_NAMES) > 300, "Expected 300+ entries from company_names.json"
+
+
+def test_company_names_contains_known_tickers():
+    import stock_analysis.data as data_mod
+    for ticker, expected in [("AAPL", "Apple"), ("NVDA", "NVIDIA"), ("MSFT", "Microsoft")]:
+        assert data_mod.COMPANY_NAMES.get(ticker) == expected, \
+            f"Expected {ticker} -> {expected}, got {data_mod.COMPANY_NAMES.get(ticker)}"
+
+
+def test_company_names_includes_nasdaq_entries():
+    """NASDAQ-sourced tickers (beyond the old hardcoded set) should be present."""
+    import stock_analysis.data as data_mod
+    # These are tickers that exist in nasdaq_tickers.json but weren't in the old hardcoded dict
+    for ticker in ["AAL", "CROX", "ROKU"]:
+        assert ticker in data_mod.COMPANY_NAMES, f"{ticker} missing from COMPANY_NAMES"
 
 
 # ── boto3 stub (not installed locally; only present in the Lambda layer) ─────

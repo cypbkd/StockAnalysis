@@ -2,7 +2,9 @@
 Shared market data fetching (yfinance) and watchlist rule configuration.
 Used by both Lambda handlers and the local report generator script.
 """
+import json
 import logging
+import os
 import warnings
 from datetime import datetime, timedelta
 from typing import Dict, List
@@ -11,203 +13,21 @@ warnings.filterwarnings("ignore")
 
 logger = logging.getLogger(__name__)
 
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-COMPANY_NAMES: Dict[str, str] = {
-    # Mega-cap tech
-    "AAPL": "Apple", "MSFT": "Microsoft", "NVDA": "NVIDIA", "GOOGL": "Alphabet",
-    "GOOG": "Alphabet (C)", "META": "Meta Platforms", "AMZN": "Amazon", "TSLA": "Tesla",
-    # Semiconductors & hardware
-    "AMD": "AMD", "INTC": "Intel", "QCOM": "Qualcomm", "TXN": "Texas Instruments",
-    "AMAT": "Applied Materials", "LRCX": "Lam Research", "KLAC": "KLA Corp",
-    "MCHP": "Microchip Technology", "MU": "Micron Technology", "NXPI": "NXP Semiconductors",
-    "ON": "ON Semiconductor", "ADI": "Analog Devices", "AVGO": "Broadcom",
-    "SWKS": "Skyworks Solutions", "QRVO": "Qorvo", "SMCI": "Super Micro Computer",
-    "FSLR": "First Solar", "ENPH": "Enphase Energy", "STX": "Seagate Technology",
-    "WDC": "Western Digital", "HPQ": "HP Inc", "HPE": "Hewlett Packard Enterprise",
-    # Software & IT services
-    "ORCL": "Oracle", "IBM": "IBM", "ACN": "Accenture", "NOW": "ServiceNow",
-    "INTU": "Intuit", "ADBE": "Adobe", "CRM": "Salesforce", "PANW": "Palo Alto Networks",
-    "FTNT": "Fortinet", "SNPS": "Synopsys", "CDNS": "Cadence Design",
-    "ADSK": "Autodesk", "CTSH": "Cognizant", "EPAM": "EPAM Systems",
-    "AKAM": "Akamai Technologies", "ANSS": "ANSYS", "PTC": "PTC Inc",
-    "GDDY": "GoDaddy", "CDW": "CDW", "GEN": "Gen Digital", "TDY": "Teledyne Technologies",
-    "TYL": "Tyler Technologies", "TRMB": "Trimble", "FICO": "Fair Isaac",
-    "IT": "Gartner", "ROP": "Roper Technologies", "MSCI": "MSCI",
-    "VRSN": "VeriSign", "FFIV": "F5", "ZBRA": "Zebra Technologies",
-    "TER": "Teradyne", "KEYS": "Keysight Technologies", "NTAP": "NetApp",
-    "GLW": "Corning", "TEL": "TE Connectivity", "JKHY": "Jack Henry & Associates",
-    "FDS": "FactSet Research", "PAYC": "Paycom Software", "MPWR": "Monolithic Power Systems",
-    # Internet & consumer tech
-    "NFLX": "Netflix", "EBAY": "eBay", "ETSY": "Etsy", "MTCH": "Match Group",
-    "EXPE": "Expedia", "TTWO": "Take-Two Interactive", "EA": "Electronic Arts",
-    "UBER": "Uber", "ABNB": "Airbnb",
-    # Financials — banks
-    "JPM": "JPMorgan Chase", "BAC": "Bank of America", "WFC": "Wells Fargo",
-    "C": "Citigroup", "GS": "Goldman Sachs", "MS": "Morgan Stanley",
-    "BK": "Bank of New York Mellon", "USB": "U.S. Bancorp", "PNC": "PNC Financial",
-    "TFC": "Truist Financial", "MTB": "M&T Bank", "RF": "Regions Financial",
-    "HBAN": "Huntington Bancshares", "KEY": "KeyCorp", "CFG": "Citizens Financial",
-    "FITB": "Fifth Third Bancorp",
-    # Financials — asset managers & exchanges
-    "BLK": "BlackRock", "BX": "Blackstone", "SPGI": "S&P Global", "MCO": "Moody's",
-    "NDAQ": "Nasdaq", "CME": "CME Group", "ICE": "Intercontinental Exchange",
-    "CBOE": "Cboe Global Markets", "SCHW": "Charles Schwab", "AMP": "Ameriprise Financial",
-    "TROW": "T. Rowe Price", "BEN": "Franklin Resources", "IVZ": "Invesco",
-    "STT": "State Street", "MKTX": "MarketAxess", "RJF": "Raymond James",
-    # Financials — insurance & diversified
-    "V": "Visa", "MA": "Mastercard", "AXP": "American Express", "PYPL": "PayPal",
-    "COF": "Capital One", "SYF": "Synchrony Financial",
-    "BRK.B": "Berkshire Hathaway", "PGR": "Progressive", "CB": "Chubb",
-    "ALL": "Allstate", "TRV": "Travelers", "HIG": "Hartford Financial",
-    "AFL": "Aflac", "MET": "MetLife", "PRU": "Prudential Financial",
-    "AIG": "American International Group", "ACGL": "Arch Capital Group",
-    "AIZ": "Assurant", "GL": "Globe Life", "CINF": "Cincinnati Financial",
-    "PFG": "Principal Financial", "WTW": "Willis Towers Watson",
-    "AON": "Aon", "MMC": "Marsh & McLennan", "AJG": "Arthur J. Gallagher",
-    "BRO": "Brown & Brown", "EG": "Everest Group",
-    "CPAY": "Corpay", "FIS": "Fidelity National Info Services",
-    "GPN": "Global Payments", "FI": "Fiserv",
-    # Health care — pharma & biotech
-    "JNJ": "Johnson & Johnson", "LLY": "Eli Lilly", "MRK": "Merck",
-    "ABBV": "AbbVie", "PFE": "Pfizer", "BMY": "Bristol-Myers Squibb",
-    "AMGN": "Amgen", "GILD": "Gilead Sciences", "BIIB": "Biogen",
-    "REGN": "Regeneron", "VRTX": "Vertex Pharmaceuticals", "MRNA": "Moderna",
-    "INCY": "Incyte", "VTRS": "Viatris", "SOLV": "Solventum",
-    # Health care — devices & services
-    "ABT": "Abbott", "TMO": "Thermo Fisher", "DHR": "Danaher",
-    "ISRG": "Intuitive Surgical", "MDT": "Medtronic", "SYK": "Stryker",
-    "BSX": "Boston Scientific", "EW": "Edwards Lifesciences", "BDX": "Becton Dickinson",
-    "IDXX": "IDEXX Laboratories", "HOLX": "Hologic", "DXCM": "DexCom",
-    "PODD": "Insulet", "RMD": "ResMed", "ALGN": "Align Technology",
-    "GEHC": "GE HealthCare", "ZBH": "Zimmer Biomet", "RVTY": "Revvity",
-    "MTD": "Mettler-Toledo", "WAT": "Waters Corp", "WST": "West Pharmaceutical Services",
-    "COO": "Cooper Companies", "STE": "STERIS", "BAX": "Baxter International",
-    "TECH": "Bio-Techne", "BIO": "Bio-Rad Laboratories", "HSIC": "Henry Schein",
-    "ZTS": "Zoetis", "DVA": "DaVita", "MOH": "Molina Healthcare",
-    # Health care — managed care
-    "UNH": "UnitedHealth", "ELV": "Elevance Health", "HUM": "Humana",
-    "CI": "Cigna", "CNC": "Centene", "CVS": "CVS Health", "HCA": "HCA Healthcare",
-    "IQV": "IQVIA", "DGX": "Quest Diagnostics", "LH": "Labcorp",
-    "COR": "Cencora", "MCK": "McKesson", "CAH": "Cardinal Health",
-    "UHS": "Universal Health Services", "DOC": "Healthpeak Properties",
-    # Industrials — defense & aerospace
-    "RTX": "RTX", "LMT": "Lockheed Martin", "GD": "General Dynamics",
-    "NOC": "Northrop Grumman", "BA": "Boeing", "HII": "Huntington Ingalls",
-    "LHX": "L3Harris Technologies", "LDOS": "Leidos", "HWM": "Howmet Aerospace",
-    "TDG": "TransDigm Group", "TXT": "Textron",
-    # Industrials — machinery & equipment
-    "CAT": "Caterpillar", "DE": "Deere", "ETN": "Eaton", "EMR": "Emerson Electric",
-    "HON": "Honeywell", "GE": "GE Aerospace", "ITW": "Illinois Tool Works",
-    "PH": "Parker Hannifin", "ROK": "Rockwell Automation", "DOV": "Dover",
-    "AME": "AMETEK", "IR": "Ingersoll Rand", "PCAR": "PACCAR",
-    "CMI": "Cummins", "WAB": "Wabtec", "ALLE": "Allegion",
-    "SWK": "Stanley Black & Decker", "SNA": "Snap-on",
-    "GNRC": "Generac", "TT": "Trane Technologies",
-    # Industrials — transportation
-    "UPS": "UPS", "FDX": "FedEx", "UNP": "Union Pacific", "NSC": "Norfolk Southern",
-    "CSX": "CSX", "JBHT": "J.B. Hunt Transport", "EXPD": "Expeditors International",
-    "CHRW": "C.H. Robinson", "ODFL": "Old Dominion Freight",
-    "DAL": "Delta Air Lines", "UAL": "United Airlines", "LUV": "Southwest Airlines",
-    "NCLH": "Norwegian Cruise Line", "RCL": "Royal Caribbean", "CCL": "Carnival",
-    # Industrials — staffing, services & misc
-    "ADP": "ADP", "CTAS": "Cintas", "PAYX": "Paychex", "BR": "Broadridge Financial",
-    "VRSK": "Verisk Analytics", "EFX": "Equifax",
-    "CPRT": "Copart", "URI": "United Rentals", "FAST": "Fastenal",
-    "AXON": "Axon Enterprise", "ROL": "Rollins", "PWR": "Quanta Services",
-    "BLDR": "Builders FirstSource", "GWW": "W.W. Grainger",
-    "JBL": "Jabil", "J": "Jacobs Solutions", "IEX": "IDEX Corp",
-    "PNR": "Pentair", "NDSN": "Nordson", "HAS": "Hasbro",
-    "VLTO": "Veralto",
-    # Consumer discretionary
-    "AMZN": "Amazon", "TSLA": "Tesla", "HD": "Home Depot", "LOW": "Lowe's",
-    "MCD": "McDonald's", "SBUX": "Starbucks", "NKE": "Nike",
-    "TJX": "TJX Companies", "TGT": "Target", "COST": "Costco",
-    "BKNG": "Booking Holdings", "MAR": "Marriott", "HLT": "Hilton",
-    "LVS": "Las Vegas Sands", "WYNN": "Wynn Resorts", "MGM": "MGM Resorts",
-    "CMG": "Chipotle", "YUM": "Yum! Brands", "DPZ": "Domino's Pizza",
-    "DRI": "Darden Restaurants", "ORLY": "O'Reilly Automotive", "AZO": "AutoZone",
-    "BBY": "Best Buy", "ULTA": "Ulta Beauty", "LULU": "Lululemon",
-    "GRMN": "Garmin", "DECK": "Deckers Outdoor", "TSCO": "Tractor Supply",
-    "TPR": "Tapestry", "RL": "Ralph Lauren", "KMX": "CarMax",
-    "LEN": "Lennar", "DHI": "D.R. Horton", "PHM": "PulteGroup", "NVR": "NVR Inc",
-    "POOL": "Pool Corp", "LYV": "Live Nation", "APTV": "Aptiv",
-    "BWA": "BorgWarner", "GPC": "Genuine Parts", "LKQ": "LKQ Corp",
-    "MHK": "Mohawk Industries", "EXPE": "Expedia", "BBWI": "Bath & Body Works",
-    "GM": "General Motors", "F": "Ford Motor",
-    # Consumer staples
-    "PG": "Procter & Gamble", "KO": "Coca-Cola", "PEP": "PepsiCo",
-    "PM": "Philip Morris", "MO": "Altria", "MDLZ": "Mondelēz",
-    "WMT": "Walmart", "KMB": "Kimberly-Clark", "GIS": "General Mills",
-    "CL": "Colgate-Palmolive", "KHC": "Kraft Heinz", "HSY": "Hershey",
-    "STZ": "Constellation Brands", "MNST": "Monster Beverage",
-    "KDP": "Keurig Dr Pepper", "KR": "Kroger", "HRL": "Hormel Foods",
-    "TSN": "Tyson Foods", "SJM": "J.M. Smucker", "CAG": "Conagra Brands",
-    "CPB": "Campbell Soup", "MKC": "McCormick", "TAP": "Molson Coors",
-    "ADM": "Archer-Daniels-Midland", "SYY": "Sysco", "KVUE": "Kenvue",
-    "K": "Kellanova",
-    # Communication services
-    "GOOGL": "Alphabet", "GOOG": "Alphabet (C)", "META": "Meta Platforms",
-    "NFLX": "Netflix", "DIS": "Walt Disney", "CMCSA": "Comcast",
-    "VZ": "Verizon", "T": "AT&T", "TMUS": "T-Mobile",
-    "CHTR": "Charter Communications", "WBD": "Warner Bros. Discovery",
-    "FOXA": "Fox Corp (A)", "FOX": "Fox Corp (B)",
-    "NWSA": "News Corp (A)", "NWS": "News Corp (B)",
-    "OMC": "Omnicom Group", "EA": "Electronic Arts",
-    # Energy
-    "XOM": "ExxonMobil", "CVX": "Chevron", "COP": "ConocoPhillips",
-    "EOG": "EOG Resources", "SLB": "SLB", "HAL": "Halliburton",
-    "MPC": "Marathon Petroleum", "PSX": "Phillips 66", "VLO": "Valero Energy",
-    "OXY": "Occidental Petroleum", "DVN": "Devon Energy", "BKR": "Baker Hughes",
-    "FANG": "Diamondback Energy", "APA": "APA Corp", "EQT": "EQT Corp",
-    "CTRA": "Coterra Energy", "OKE": "ONEOK", "KMI": "Kinder Morgan",
-    "WMB": "Williams Companies", "TRGP": "Targa Resources",
-    "TPL": "Texas Pacific Land", "GEV": "GE Vernova",
-    # Materials
-    "LIN": "Linde", "APD": "Air Products", "SHW": "Sherwin-Williams",
-    "ECL": "Ecolab", "FCX": "Freeport-McMoRan", "NUE": "Nucor",
-    "DD": "DuPont", "DOW": "Dow Inc", "LYB": "LyondellBasell",
-    "PPG": "PPG Industries", "EMN": "Eastman Chemical", "ALB": "Albemarle",
-    "CF": "CF Industries", "MOS": "Mosaic", "NEM": "Newmont",
-    "AMCR": "Amcor", "AVY": "Avery Dennison", "BALL": "Ball Corp",
-    "IP": "International Paper", "PKG": "Packaging Corp of America",
-    "VMC": "Vulcan Materials", "MLM": "Martin Marietta Materials",
-    "STLD": "Steel Dynamics", "IFF": "International Flavors & Fragrances",
-    "CTVA": "Corteva",
-    # Utilities
-    "NEE": "NextEra Energy", "SO": "Southern Company", "DUK": "Duke Energy",
-    "D": "Dominion Energy", "AEP": "American Electric Power", "SRE": "Sempra",
-    "EXC": "Exelon", "XEL": "Xcel Energy", "ES": "Eversource Energy",
-    "ETR": "Entergy", "WEC": "WEC Energy", "PEG": "Public Service Enterprise",
-    "EIX": "Edison International", "DTE": "DTE Energy", "AWK": "American Water Works",
-    "ATO": "Atmos Energy", "LNT": "Alliant Energy", "CMS": "CMS Energy",
-    "CNP": "CenterPoint Energy", "NI": "NiSource", "PNW": "Pinnacle West",
-    "EVRG": "Evergy", "FE": "FirstEnergy", "PPL": "PPL Corp",
-    "AES": "AES Corp", "PCG": "PG&E", "CEG": "Constellation Energy",
-    "NRG": "NRG Energy", "VST": "Vistra",
-    # Real estate
-    "PLD": "Prologis", "AMT": "American Tower", "EQIX": "Equinix",
-    "CCI": "Crown Castle", "PSA": "Public Storage", "SPG": "Simon Property Group",
-    "WELL": "Welltower", "O": "Realty Income", "DLR": "Digital Realty",
-    "AVB": "AvalonBay Communities", "EQR": "Equity Residential",
-    "SBAC": "SBA Communications", "IRM": "Iron Mountain", "INVH": "Invitation Homes",
-    "VICI": "VICI Properties", "VTR": "Ventas", "ESS": "Essex Property Trust",
-    "MAA": "Mid-America Apartment", "UDR": "UDR Inc",
-    "EXR": "Extra Space Storage", "ARE": "Alexandria Real Estate",
-    "CSGP": "CoStar Group", "CBRE": "CBRE Group", "REG": "Regency Centers",
-    "FRT": "Federal Realty", "CPT": "Camden Property Trust",
-    "KIM": "Kimco Realty", "HST": "Host Hotels & Resorts",
-    "WY": "Weyerhaeuser", "DOC": "Healthpeak Properties",
-    # Nasdaq-100 / QQQ additions
-    "ABNB": "Airbnb", "ARM": "Arm Holdings", "ASML": "ASML Holding",
-    "AZN": "AstraZeneca", "CHKP": "Check Point Software",
-    "CRWD": "CrowdStrike", "DDOG": "Datadog", "ILMN": "Illumina",
-    "MELI": "MercadoLibre", "MRVL": "Marvell Technology",
-    "MSTR": "MicroStrategy", "PDD": "PDD Holdings",
-    "TEAM": "Atlassian", "TTD": "The Trade Desk",
-    "WDAY": "Workday", "ZM": "Zoom Video", "ZS": "Zscaler",
-    # Personal portfolio / watchlist extras
-    "SOFI": "SoFi Technologies", "PLTR": "Palantir",
-}
+
+def _load_company_names() -> Dict[str, str]:
+    """Load company names from the static JSON file bundled with the package."""
+    path = os.path.join(_DATA_DIR, "company_names.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as exc:
+        logger.warning("Failed to load company_names.json: %s", exc)
+        return {}
+
+
+COMPANY_NAMES: Dict[str, str] = _load_company_names()
 
 
 def load_watchlists(table_name: str) -> Dict[str, Dict]:

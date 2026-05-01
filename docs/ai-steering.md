@@ -27,7 +27,10 @@ app/                        Python 3.11 — Lambda handlers + domain logic
     __init__.py             Public API re-exports
     cache.py                S3 raw-data cache planning (CacheRequest, S3CachePlanner)
     chunking.py             Splits ticker lists into 50-ticker chunks (TickerChunker)
-    data.py                 COMPANY_NAMES, RULE_CONFIGS, load_watchlists(), yfinance fetcher + indicator calc
+    data.py                 COMPANY_NAMES (loaded from data/company_names.json), RULE_CONFIGS, load_watchlists(), yfinance fetcher + indicator calc
+    data/
+      company_names.json    Static ticker→name lookup (~3345 entries); loaded at import time
+      nasdaq_tickers.json   Full NASDAQ common-stock list (~3031 tickers); used by seed-watchlists.sh
     earnings.py             Parallel yfinance calendar fetch → {days, date, timing} per ticker
     rules.py                CanonicalRule, RuleCondition, SUPPORTED_FIELDS
     trending.py             Yahoo Finance trending list fetch + 3-day price/volume enrichment (build_trending_tickers)
@@ -361,13 +364,14 @@ Three alarms fire into this topic:
 - `scripts/run-aggregator.sh` — invoke aggregator only (skips coordinator + workers); useful after news/config fixes
 - Historical report navigation via `/?date=YYYY-MM-DD`
 - CloudWatch alarms for coordinator errors, aggregator errors, DLQ depth
-- Full test suite: Python pytest (84), CDK Jest (15), JS node:test (39) = **138 tests**
+- Full test suite: Python pytest (122), CDK Jest (15), JS node:test (48) = **185 tests**
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
 - **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Yahoo Finance chart link; back navigation
 - `COMPANY_NAMES` expanded to ~300 entries covering full S&P 500 + QQQ + DJIA + all watchlist tickers (was ~70 with duplicate keys)
 - `WATCHLISTS` and `_SP500_TICKERS` consolidated into `data.py` — single source of truth for all ticker/watchlist/rule/company-name data; `coordinator.py` imports from there (both subsequently removed in favour of DynamoDB)
 - **DynamoDB-backed watchlists** — `WATCHLISTS` constant removed from `data.py`; replaced by `load_watchlists(table_name)` which scans the `{ENV_NAME}-watchlists` table (version="latest" items). Coordinator calls it at runtime. Seed with `scripts/seed-watchlists.sh`. New watchlists no longer need a redeploy.
 - **QQQ + DJIA watchlists** added to `seed-watchlists.sh` (`qqq` ≈ 90 Nasdaq-100 tickers; `djia` = 30 DJIA tickers); 17 new company name entries added to `COMPANY_NAMES` in `data.py` (ARM, ASML, AZN, CHKP, CRWD, DDOG, ILMN, MELI, MRVL, MSTR, PDD, TEAM, TTD, WDAY, ZM, ZS, and ABNB)
+- **Watchlist reorganization**: watchlists simplified to 3 lists — `spy500` (S&P 500), `nasdaq` (full NASDAQ exchange, ~3031 common stocks), `djia` (30 DJIA). QQQ (Nasdaq-100), FANG+, and Lao Li watchlists removed. Company names moved from a hardcoded dict in `data.py` to a static JSON file at `app/stock_analysis/data/company_names.json` (3345 entries); NASDAQ ticker list stored at `app/stock_analysis/data/nasdaq_tickers.json`. Refresh the ticker list with `scripts/update-nasdaq-tickers.sh` (downloads from nasdaqtrader.com). Both JSON files are bundled with the Lambda zip — no code change needed when NASDAQ composition changes, just re-run the update + seed scripts.
 - **Gemini news summary** (`news.py`): fetches Yahoo Finance RSS for up to 10 symbols (high-priority screener picks + trending tickers, deduped), calls `gemini-2.5-flash` (thinking disabled, 800 token budget) → 6-8 sentence plain-English market summary; result in `report.json` as `newsSummary`; fault-tolerant (returns `""` on any failure)
 - **Trending Tickers section** (`trending.py`): fetches Yahoo Finance daily trending list (`/v1/finance/trending/US`), enriches each symbol with 3-day return, 1-day return, and volume ratio from yfinance, plus a top headline; stored in `report.json` as `trendingTickers[]`; rendered in the dashboard as a dedicated "Trending Tickers" section (Market Buzz label) above Today's Highlights and Watchlists, always shown regardless of rule matches; rank badge, positive/negative coloring, company name, and headline included per card; trending symbols are also merged into the Gemini news summary prompt so the AI considers market buzz alongside high-priority screener names
 - **On-demand ticker analysis** (`details.py` + `handlers/analysis.py`): Lambda Function URL (open CORS) called by the browser when user opens a ticker detail page; checks S3 cache at `analyses/{date}/{ticker}.json`; on miss calls Gemini (`gemini-2.5-flash`, JSON mode, 2000 tokens) → `{ summary, rules, priceTargets, verdict, fundamentals }` and caches to S3; `config.json` (written to S3 by deploy script from CloudFormation output) tells the frontend the Function URL; local dev server serves mock config + mock analysis endpoint; each signal now includes `technicalData` (19 metrics) so the analysis Lambda can build the prompt without reading chunk files
