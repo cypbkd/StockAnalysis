@@ -5,3 +5,5 @@
 4. Always run `./scripts/test-and-deploy.sh` after making changes (including your tests).
 5. Update CLAUDE.md so you don't make that mistake again.
 6. When you make logic changes, ALWAYS add logs to help with the operations.
+7. Company names live in `app/stock_analysis/data/company_names.json` — do NOT add them back as a hardcoded dict in `data.py`. NASDAQ tickers live in `app/stock_analysis/data/nasdaq_tickers.json`. Refresh with `scripts/update-nasdaq-tickers.sh`.
+8. Active watchlists are: `spy500` (S&P 500), `nasdaq` (full NASDAQ), `djia` (30 DJIA). Do not re-add QQQ, FANG+, or Lao Li watchlists.
