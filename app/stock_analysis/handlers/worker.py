@@ -56,6 +56,7 @@ def handler(event: dict, context: object) -> dict:
                 if result.matched:
                     matched_rules.append({
                         "watchlist_id": wl_id,
+                        "rule_key": wl_id,  # wl_id IS the rule key (RULE_CONFIGS key)
                         "rule_name": cfg["rule_def"]["name"],
                         "score": result.score,
                         "reasons": [e.reason for e in result.matched_conditions],

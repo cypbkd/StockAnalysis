@@ -31,6 +31,9 @@ logger.setLevel(logging.INFO)
 
 _Condition = namedtuple("_Condition", ["reason"])
 
+# Sum of all rule weights — used to normalise weighted_score to 0–100
+_MAX_WEIGHTED_SCORE = sum(cfg.get("weight", 1.0) for cfg in RULE_CONFIGS.values())
+
 
 class _SignalProxy:
     """Duck-type ScreeningResult so aggregated chunk dicts work with build_nightly_report."""
@@ -44,6 +47,7 @@ class _SignalProxy:
             **d["metrics"],
             "rule_names": d.get("rule_names", []),
             "match_count": d.get("match_count", 1),
+            "weighted_score": d.get("weighted_score", 0),
             "watchlists": d.get("watchlists", []),
         }
         self.matched_conditions = [_Condition(r) for r in d["reasons"]]
@@ -117,12 +121,19 @@ def handler(event: dict, context: object) -> dict:
             for wl_id in ticker_watchlists:
                 watchlist_signal_counts[wl_id] = watchlist_signal_counts.get(wl_id, 0) + 1
             best = max(matched_rules, key=lambda x: x["score"])
+            raw_weighted = sum(
+                RULE_CONFIGS.get(mr.get("rule_key", ""), {}).get("weight", 1.0)
+                for mr in matched_rules
+            )
+            weighted_score = round(raw_weighted / _MAX_WEIGHTED_SCORE * 100)
+            logger.debug("Ticker %s: match_count=%d weighted_score=%d", sym, len(matched_rules), weighted_score)
             matched_results.append({
                 "symbol": sym,
                 "score": best["score"],
                 "reasons": best["reasons"],
                 "metrics": metrics,
                 "match_count": len(matched_rules),
+                "weighted_score": weighted_score,
                 "rule_names": [mr["rule_name"] for mr in matched_rules],
                 "watchlists": ticker_watchlists,
             })
@@ -135,7 +146,7 @@ def handler(event: dict, context: object) -> dict:
     )
     earnings_candidates.extend(supplemental)
 
-    matched_results.sort(key=lambda x: (-x["match_count"], -x["score"], x["symbol"]))
+    matched_results.sort(key=lambda x: (-x["weighted_score"], -x["match_count"], x["symbol"]))
     logger.info("Total matched: %d signals, %d earnings candidates (%d supplemented from API cache)",
                 len(matched_results), len(earnings_candidates), len(supplemental))
 
@@ -164,10 +175,10 @@ def handler(event: dict, context: object) -> dict:
     fang_total = len(manifest_watchlists.get("fang", {}).get("tickers", [])) or 8
     breadth_pct = round(sp500_signals / sp500_total * 100, 1) if sp500_total else 0.0
 
-    top_conviction = [r["symbol"] for r in matched_results if r["match_count"] > 4]
+    top_conviction = [r["symbol"] for r in matched_results if r["weighted_score"] >= 35]
     top_conviction_highlight = (
-        f"Top conviction (5+ rules): {', '.join(top_conviction[:8])}"
-        if top_conviction else "No tickers matched more than 4 rules today"
+        f"Top conviction (score ≥35): {', '.join(top_conviction[:8])}"
+        if top_conviction else "No tickers reached conviction threshold today"
     )
 
     imminent = sorted(
@@ -203,7 +214,7 @@ def handler(event: dict, context: object) -> dict:
     # so Gemini has context on both technically strong names and market buzz.
     high_priority_symbols = [
         r["symbol"] for r in matched_results
-        if r["match_count"] >= 5
+        if r["weighted_score"] >= 35
     ][:8]
     trending_symbols = [t["symbol"] for t in trending_tickers]
     # Merge, deduplicate, cap at 10 so the prompt stays focused
