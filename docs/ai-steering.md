@@ -158,7 +158,17 @@ All 14 rules run against every deduplicated ticker on each nightly run. A ticker
 | `td_buy` | TD Sequential Buy Setup (神奇九转买入) | td_buy_setup >= 9 |
 | `td_sell` | TD Sequential Sell Setup (神奇九转卖出) | td_sell_setup >= 9 |
 
-**Signal priority:** `high priority` = ≥ 5 rules matched; `matched` = 1–4 rules.
+**Signal priority:** `high priority` = `weighted_score` ≥ 35 (out of 100); `matched` = any lower score.
+
+**Weighted scoring:** Each rule carries a `weight` field in `RULE_CONFIGS`. `weighted_score = sum(matched rule weights) / MAX_WEIGHTED_SCORE * 100`. `MAX_WEIGHTED_SCORE` = 21.5 (sum of all 14 rule weights).
+
+| Weight | Rules |
+|---|---|
+| 2.0 (Primary Momentum) | `ath_breakout`, `golden_cross`, `strong_trending_day`, `high_vol_day` |
+| 1.5 (Confirmation + Contrarian) | `ma_stack`, `pre_earnings_momentum`, `pivot_r1_breakout`, `oversold_dip`, `td_buy`, `td_sell`, `near_52w_support` |
+| 1.0 (Tactical/Minor) | `near_ath`, `pivot_s1_bounce`, `dead_cross` |
+
+The score (0–100) is displayed as a dark badge in the top-right corner of each signal card on the daily report. Signals are sorted by `weighted_score` descending. The `rule_key` is now stored in worker chunk data so aggregator can look up weights without re-matching.
 
 Rules are hardcoded in `app/stock_analysis/data.py → RULE_CONFIGS`. DynamoDB-backed loading is a future task.
 

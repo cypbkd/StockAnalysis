@@ -175,7 +175,7 @@ def build_nightly_report(
             "matchedSignals": len(matched_results),
             "highPrioritySignals": sum(
                 1 for result in matched_results
-                if _result_status(result, result.metrics.get("match_count", 1)) == "high priority"
+                if _result_status(result.metrics.get("weighted_score", 0), result.metrics.get("match_count", 1)) == "high priority"
             ),
             "optionsCandidates": len(option_ideas),
             "earningsWatchCount": len(earnings_watch),
@@ -225,16 +225,17 @@ def _result_to_signal(result: ScreeningResult) -> Dict[str, Any]:
     reasons = [evaluation.reason for evaluation in result.matched_conditions]
     metrics = result.metrics
 
+    weighted_score = metrics.get("weighted_score", 0)
     return {
         "symbol": result.symbol,
         "companyName": metrics.get("company_name", result.symbol),
         "watchlists": metrics.get("watchlists", []),
         "ruleNames": metrics.get("rule_names") or ([metrics["rule_name"]] if metrics.get("rule_name") else []),
-        "score": round(result.score * 100),
+        "score": weighted_score,
         "lastPrice": metrics.get("close", 0.0),
         "changePercent": metrics.get("change_percent", 0.0),
         "reason": "; ".join(reasons) if reasons else "Matched the active rules.",
-        "status": _result_status(result, metrics.get("match_count", 1)),
+        "status": _result_status(weighted_score, metrics.get("match_count", 1)),
         "technicalData": _extract_technical_data(metrics),
     }
 
@@ -285,9 +286,9 @@ def _extract_technical_data(metrics: Mapping[str, Any]) -> Dict[str, Any]:
     return {camel: metrics[snake] for camel, snake in fields.items() if metrics.get(snake) is not None}
 
 
-def _result_status(result: ScreeningResult, match_count: int = 1) -> str:
-    if match_count >= 5:
+def _result_status(weighted_score: int, match_count: int = 1) -> str:
+    if weighted_score >= 35:
         return "high priority"
-    if result.score >= 0.5:
+    if match_count >= 1:
         return "matched"
     return "watch"

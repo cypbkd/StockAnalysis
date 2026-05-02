@@ -7,6 +7,7 @@ from stock_analysis.screening import (
     OptionIdea,
     ReportWatchlist,
     build_nightly_report,
+    _result_status,
 )
 
 
@@ -204,6 +205,20 @@ def test_signal_technical_data_omits_missing_fields():
     td = report["stockSignals"][0]["technicalData"]
     assert "volumeRatio" not in td
     assert "earningsDate" not in td
+
+
+def test_result_status_high_priority_at_weighted_score_35():
+    assert _result_status(35, match_count=1) == "high priority"
+
+
+def test_result_status_matched_below_threshold():
+    assert _result_status(34, match_count=1) == "matched"
+    assert _result_status(0, match_count=3) == "matched"
+
+
+def test_result_status_high_priority_ignores_match_count_alone():
+    # 5 old-style rule matches with no weighted_score should not qualify as high priority
+    assert _result_status(0, match_count=5) == "matched"
 
 
 def _golden_cross_rule():

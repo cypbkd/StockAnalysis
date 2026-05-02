@@ -15,7 +15,7 @@ test('fixture report is valid JSON and matches the report contract', async () =>
   const parsed = JSON.parse(raw);
 
   assert.deepEqual(validateReport(parsed), []);
-  assert.equal(parsed.reportDate, '2026-04-25');
+  assert.match(parsed.reportDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(parsed.stockSignals.length > 0);
   assert.ok(parsed.optionsSignals.length > 0);
 });

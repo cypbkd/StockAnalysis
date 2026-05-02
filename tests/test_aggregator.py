@@ -12,7 +12,20 @@ if "boto3" not in sys.modules:
 from stock_analysis.handlers.aggregator import (
     _current_week_bounds,
     _supplement_earnings_from_api_cache,
+    _MAX_WEIGHTED_SCORE,
 )
+from stock_analysis.data import RULE_CONFIGS
+
+
+def test_max_weighted_score_equals_sum_of_all_rule_weights():
+    expected = sum(cfg["weight"] for cfg in RULE_CONFIGS.values())
+    assert _MAX_WEIGHTED_SCORE == expected
+
+
+def test_all_rules_have_weight_field():
+    for rule_key, cfg in RULE_CONFIGS.items():
+        assert "weight" in cfg, f"Rule '{rule_key}' is missing a weight field"
+        assert cfg["weight"] in (1.0, 1.5, 2.0), f"Rule '{rule_key}' has unexpected weight {cfg['weight']}"
 
 
 def test_current_week_bounds_wednesday():

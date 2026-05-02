@@ -66,6 +66,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "ma_stack": {
         "name": "MA Stack",
         "priority": "high",
+        "weight": 1.5,  # Volume/Confirmation: trend structure quality
         "rule_summary": "All MAs aligned bullishly and RSI not overheated — close > EMA-20 > SMA-50, RSI < 75",
         "rule_def": {
             "logic": "and",
@@ -82,6 +83,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "golden_cross": {
         "name": "Golden Cross",
         "priority": "high",
+        "weight": 2.0,  # Primary Momentum: trend continuation breakout
         "rule_summary": "SMA-20 just crossed above SMA-50 today (was below yesterday) with price follow-through",
         "rule_def": {
             "logic": "and",
@@ -99,6 +101,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "dead_cross": {
         "name": "Dead Cross",
         "priority": "high",
+        "weight": 1.0,  # Structural/Risk: bearish regime signal — lower weight avoids over-ranking short setups
         "rule_summary": "SMA-20 just crossed below SMA-50 today (was above yesterday) with price breaking down",
         "rule_def": {
             "logic": "and",
@@ -115,6 +118,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "ath_breakout": {
         "name": "ATH Breakout",
         "priority": "high",
+        "weight": 2.0,  # Primary Momentum: strongest trend continuation signal
         "rule_summary": "Price at or above 52-week high with volume at least 1.5x the 20-day average",
         "rule_def": {
             "logic": "and",
@@ -130,6 +134,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "near_ath": {
         "name": "Near-ATH Consolidation",
         "priority": "high",
+        "weight": 1.0,  # Tactical/Minor: passive observation, needs confirmation
         "rule_summary": "Within 3% of 52-week high, quiet volume, RSI not overheated — coiling before breakout",
         "rule_def": {
             "logic": "and",
@@ -146,6 +151,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "oversold_dip": {
         "name": "Oversold Dip",
         "priority": "high",
+        "weight": 1.5,  # Contrarian/Reversal: mean reversion with trend support
         "rule_summary": "Long-term trend intact (above 50DMA) but RSI dipped into oversold territory — dip-buy setup",
         "rule_def": {
             "logic": "and",
@@ -161,6 +167,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "pre_earnings_momentum": {
         "name": "Pre-Earnings Momentum",
         "priority": "high",
+        "weight": 1.5,  # Tactical: time-bound event signal, actionable within 7-day window
         "rule_summary": "Earnings within 7 days, price above 20DMA, RSI above 55 — pre-earnings run setup",
         "rule_def": {
             "logic": "and",
@@ -177,6 +184,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "high_vol_day": {
         "name": "High-Volume Day",
         "priority": "high",
+        "weight": 2.0,  # Primary Momentum: institutional accumulation confirmation
         "rule_summary": "Volume at least 2x average with RSI above 55 and price above 20DMA — institutional buying",
         "rule_def": {
             "logic": "and",
@@ -193,6 +201,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "strong_trending_day": {
         "name": "Strong Trending Day",
         "priority": "high",
+        "weight": 2.0,  # Primary Momentum: confirmed price action breakout
         "rule_summary": "Single-day gain of 3%+ with volume confirmation inside an uptrend — momentum breakout",
         "rule_def": {
             "logic": "and",
@@ -209,6 +218,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "near_52w_support": {
         "name": "Near 52-Week Support",
         "priority": "high",
+        "weight": 1.5,  # Structural: annual floor is a meaningful level — buyers historically step in
         "rule_summary": "Price within 5% of 52-week low with RSI cooling — potential support bounce",
         "rule_def": {
             "logic": "and",
@@ -224,6 +234,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "pivot_s1_bounce": {
         "name": "Pivot S1 Bounce",
         "priority": "high",
+        "weight": 1.0,  # Tactical/Minor: short-term support hold, needs other confirmation
         "rule_summary": "Price holding within 3% above S1 pivot support with RSI not stretched — classic intraday support hold",
         "rule_def": {
             "logic": "and",
@@ -240,6 +251,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "pivot_r1_breakout": {
         "name": "Pivot R1 Breakout",
         "priority": "high",
+        "weight": 1.5,  # Confirmation: level breakout with volume — resistance-to-support flip
         "rule_summary": "Price broke above R1 pivot resistance on above-average volume — resistance turned support",
         "rule_def": {
             "logic": "and",
@@ -255,6 +267,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "td_buy": {
         "name": "TD Buy Setup",
         "priority": "high",
+        "weight": 1.5,  # Contrarian/Reversal: count-based exhaustion, context-dependent
         "rule_summary": "9 consecutive closes below close[i-4] — 神奇九转 exhaustion signal, potential reversal up",
         "rule_def": {
             "logic": "and",
@@ -269,6 +282,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "td_sell": {
         "name": "TD Sell Setup",
         "priority": "high",
+        "weight": 1.5,  # Contrarian/Reversal: count-based exhaustion, context-dependent
         "rule_summary": "9 consecutive closes above close[i-4] — 神奇九转 exhaustion signal, potential reversal down",
         "rule_def": {
             "logic": "and",

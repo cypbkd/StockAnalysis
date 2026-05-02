@@ -144,6 +144,9 @@ function renderSignalCard(signal) {
   const companyDisplay = signal.companyName && signal.companyName !== signal.symbol
     ? `<span>${escapeHtml(signal.companyName)}</span>`
     : '';
+  const scoreBadge = signal.score != null
+    ? `<span class="score-badge" title="Weighted signal score (0–100)">${signal.score}</span>`
+    : '';
   return `
     <article class="surface-card signal-card hard-shadow-hover">
       <div class="card-topline">
@@ -152,6 +155,7 @@ function renderSignalCard(signal) {
           <h3><a href="#symbol/${encodeURIComponent(signal.symbol)}" class="symbol-detail-link">${escapeHtml(signal.symbol)}</a> ${companyDisplay}</h3>
           <div class="watchlist-tags">${(signal.watchlists ?? []).map(w => `<span class="pill pill-soft">${escapeHtml(w)}</span>`).join('')}</div>
         </div>
+        ${scoreBadge}
       </div>
       <dl class="signal-meta">
         <div><dt>Price</dt><dd>${escapeHtml(formatPrice(signal.lastPrice))}</dd></div>
