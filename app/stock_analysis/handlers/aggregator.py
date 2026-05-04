@@ -31,6 +31,48 @@ logger.setLevel(logging.INFO)
 
 _Condition = namedtuple("_Condition", ["reason"])
 
+
+def _format_option_contract(idea) -> str:
+    """Format an OptionIdea as a compact OCC-style contract label.
+
+    e.g. NDAQ $89 put expiring 2026-05-08 → NDAQ260508P00089000
+    Both cash-secured put and bear put spread strategies are puts (P).
+    """
+    symbol = idea.symbol
+    exp = idea.expiration or ""
+    strike = idea.strike
+
+    try:
+        from datetime import datetime as _dt
+        date_str = _dt.strptime(exp, "%Y-%m-%d").strftime("%y%m%d")
+    except Exception:
+        date_str = exp.replace("-", "")[-6:]
+
+    strike_int = round((strike or 0) * 1000)
+    return f"{symbol}{date_str}P{strike_int:08d}"
+
+
+def _option_strategy_abbrev(strategy: str) -> str:
+    """Map a strategy description to a short 2-letter code.
+
+    BC = Buy Call, BP = Buy Put, SC = Sell Call, SP = Sell Put
+    """
+    s = strategy.lower()
+    if "cash-secured put" in s or ("sell" in s and "put" in s):
+        return "SP"
+    if "bear put spread" in s or ("buy" in s and "put" in s):
+        return "BP"
+    if "cash-secured call" in s or ("sell" in s and "call" in s):
+        return "SC"
+    if "bull call spread" in s or ("buy" in s and "call" in s):
+        return "BC"
+    return "OPT"
+
+
+def _ticker_anchor(symbol: str, href: str, label: str = None) -> str:
+    """Return a safe HTML anchor for a ticker symbol."""
+    return f'<a href="{href}">{label or symbol}</a>'
+
 # Sum of all rule weights — used to normalise weighted_score to 0–100
 _MAX_WEIGHTED_SCORE = sum(cfg.get("weight", 1.0) for cfg in RULE_CONFIGS.values())
 
@@ -168,49 +210,83 @@ def handler(event: dict, context: object) -> dict:
     # 6. Options ideas — real options chain analysis for liquid names that matched
     option_ideas: List[OptionIdea] = build_options_ideas(matched_results, max_ideas=5)
 
-    # 7. Build highlights
-    sp500_signals = watchlist_signal_counts.get("spy500", 0)
-    sp500_total = len(manifest_watchlists.get("spy500", {}).get("tickers", [])) or 484
-    fang_signals = watchlist_signal_counts.get("fang", 0)
-    fang_total = len(manifest_watchlists.get("fang", {}).get("tickers", [])) or 8
-    breadth_pct = round(sp500_signals / sp500_total * 100, 1) if sp500_total else 0.0
+    # 7. Active rules
+    active_rules = [CanonicalRule.from_mapping(cfg["rule_def"]) for cfg in RULE_CONFIGS.values()]
 
-    top_conviction = [r["symbol"] for r in matched_results if r["weighted_score"] >= 35]
-    top_conviction_highlight = (
-        f"Top conviction (score ≥35): {', '.join(top_conviction[:8])}"
-        if top_conviction else "No tickers reached conviction threshold today"
-    )
+    # 8. Report history
+    report_history = _build_report_history(s3, bucket, run_date)
+
+    logger.info("Built %d option ideas, %d earnings watch entries", len(option_ideas), len(_build_earnings_watch(earnings_candidates)))
+
+    # 9. Trending tickers from Yahoo Finance (fetched before highlights so we can include them)
+    logger.info("Fetching trending tickers from Yahoo Finance")
+    trending_tickers = build_trending_tickers(run_date)
+    logger.info("Built %d trending tickers", len(trending_tickers))
+
+    # 10. Build highlights
+    total_symbols = len(all_chunk_symbols)
+    total_matched = len(matched_results)
+    breadth_pct = round(total_matched / total_symbols * 100, 1) if total_symbols else 0.0
+
+    top_conviction = [r["symbol"] for r in matched_results if r["weighted_score"] >= 40]
+    if top_conviction:
+        top10_links = ", ".join(
+            _ticker_anchor(s, f"#symbol/{s}") for s in top_conviction[:10]
+        )
+        top_conviction_highlight = (
+            f"Top conviction (score ≥40): {len(top_conviction)} tickers — {top10_links}"
+        )
+    else:
+        top_conviction_highlight = "No tickers reached conviction threshold today"
 
     imminent = sorted(
         {c["symbol"]: c for c in earnings_candidates if c["days"] <= 7}.values(),
         key=lambda c: c["days"],
     )
-    earnings_highlight = (
-        f"Earnings this week: {', '.join(c['symbol'] for c in imminent[:8])} — watch for elevated implied volatility"
-        if imminent else "No earnings this week in the current universe"
-    )
+    if imminent:
+        notable_links = ", ".join(
+            _ticker_anchor(c["symbol"], f"#symbol/{c['symbol']}") for c in imminent[:8]
+        )
+        earnings_highlight = (
+            f"{len(imminent)} tickers report earnings this week "
+            f"(notably: {notable_links}) — watch for elevated implied volatility"
+        )
+    else:
+        earnings_highlight = "No earnings this week in the current universe"
+
+    if trending_tickers:
+        trending_links = ", ".join(
+            _ticker_anchor(t["symbol"], f"https://finance.yahoo.com/quote/{t['symbol']}/")
+            for t in trending_tickers[:10]
+        )
+        trending_highlight = f"Yahoo trending from the past 3 days: {trending_links}"
+    else:
+        trending_highlight = "No Yahoo Finance trending tickers available today"
+    logger.info("Trending highlight symbols: %s", ", ".join(t["symbol"] for t in trending_tickers[:10]))
+
+    if option_ideas:
+        opts_links = ", ".join(
+            _ticker_anchor(
+                idea.symbol,
+                f"https://finance.yahoo.com/quote/{idea.symbol}/options/",
+                f"{idea.symbol}-{_option_strategy_abbrev(idea.strategy)}",
+            )
+            for idea in option_ideas
+        )
+        options_highlight = f"Options watching: {opts_links}"
+    else:
+        options_highlight = "No options ideas today"
+    logger.info("Options highlight: %s", options_highlight)
 
     highlights = [
-        f"{sp500_signals} of {sp500_total} S&P 500 stocks matched at least one rule — {breadth_pct}% breadth",
-        f"FANG+: {fang_signals} of {fang_total} names matched at least one rule",
+        f"{total_matched} of {total_symbols} stocks matched at least one rule — {breadth_pct}% breadth",
         top_conviction_highlight,
         earnings_highlight,
+        trending_highlight,
+        options_highlight,
     ]
 
-    # 8. Active rules
-    active_rules = [CanonicalRule.from_mapping(cfg["rule_def"]) for cfg in RULE_CONFIGS.values()]
-
-    # 9. Report history
-    report_history = _build_report_history(s3, bucket, run_date)
-
-    logger.info("Built %d option ideas, %d earnings watch entries", len(option_ideas), len(_build_earnings_watch(earnings_candidates)))
-
-    # 10. Trending tickers from Yahoo Finance (top movers over past 3 days)
-    logger.info("Fetching trending tickers from Yahoo Finance")
-    trending_tickers = build_trending_tickers(run_date)
-    logger.info("Built %d trending tickers", len(trending_tickers))
-
-    # 11. News summary — combine high-priority screener picks with trending tickers
+    # 11. News summary — combine high-priority screener picks with trending tickers (already fetched)
     # so Gemini has context on both technically strong names and market buzz.
     high_priority_symbols = [
         r["symbol"] for r in matched_results

@@ -422,7 +422,7 @@ function renderFrontPageHighlights(highlights = []) {
   if (!highlights.length) return '';
   return `
     <ul class="front-page-highlights">
-      ${highlights.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}
+      ${highlights.map((h) => `<li>${h}</li>`).join('')}
     </ul>
   `;
 }

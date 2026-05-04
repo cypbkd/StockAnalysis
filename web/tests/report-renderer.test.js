@@ -9,7 +9,13 @@ const sampleReport = createEmptyReport({
   generatedAt: '2026-04-23T20:05:00-07:00',
   universe: { name: 'SPY 500', totalSymbols: 503, activeLists: ['SPY 500'] },
   summary: { totalSymbols: 503, matchedSignals: 14, highPrioritySignals: 5, optionsCandidates: 8, earningsWatchCount: 4 },
-  highlights: ['S&P breadth at 38.8% — 188 of 484 names in uptrend', 'FANG: 6 of 8 above 20-day'],
+  highlights: [
+    '188 of 3545 stocks matched at least one rule — 38.8% breadth',
+    'Top conviction (score ≥40): 5 tickers — <a href="#symbol/NVDA">NVDA</a>, <a href="#symbol/AAPL">AAPL</a>',
+    '4 tickers report earnings this week (notably: <a href="#symbol/META">META</a>) — watch for elevated implied volatility',
+    'Yahoo trending from the past 3 days: <a href="https://finance.yahoo.com/quote/NVDA/">NVDA</a>',
+    'Options watching: <a href="https://finance.yahoo.com/quote/AAPL/options/">AAPL-SP</a>',
+  ],
   newsSummary: 'NVDA extended its rally on AI demand. AAPL beat earnings expectations.',
   reportHistory: [{ label: 'Apr 23', date: '2026-04-23', href: '/latest/', isActive: true }],
   watchlists: [{ id: 'spy500', name: 'SPY 500', symbols: 503, ruleSummary: '', priority: 'core' }],
@@ -103,8 +109,10 @@ test('renderReportApp renders highlights as bullet list in Front Page section', 
   const html = renderReportApp(sampleReport);
 
   assert.match(html, /front-page-highlights/);
-  assert.match(html, /S&amp;P breadth at 38\.8%/);
-  assert.match(html, /FANG: 6 of 8 above 20-day/);
+  assert.match(html, /188 of 3545 stocks matched/);
+  // Links are rendered as raw HTML (not escaped)
+  assert.match(html, /href="#symbol\/NVDA"/);
+  assert.match(html, /AAPL-SP/);
 });
 
 test('renderReportApp omits highlights list when highlights array is empty', () => {
