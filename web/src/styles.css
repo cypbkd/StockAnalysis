@@ -440,6 +440,16 @@ dt,
   color: var(--accent);
 }
 
+.front-page-highlights li a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.front-page-highlights li a:hover {
+  text-decoration: underline;
+}
+
 .earnings-chart {
   margin: 0 0 18px;
   border: var(--border);

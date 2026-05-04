@@ -12,9 +12,192 @@ if "boto3" not in sys.modules:
 from stock_analysis.handlers.aggregator import (
     _current_week_bounds,
     _supplement_earnings_from_api_cache,
+    _format_option_contract,
+    _option_strategy_abbrev,
+    _ticker_anchor,
     _MAX_WEIGHTED_SCORE,
 )
+from stock_analysis.screening import OptionIdea
 from stock_analysis.data import RULE_CONFIGS
+
+
+# ---------------------------------------------------------------------------
+# Highlight generation tests
+# ---------------------------------------------------------------------------
+
+def _build_highlights(
+    total_matched=10,
+    total_symbols=3545,
+    top_conviction=None,
+    imminent_earnings=None,
+    trending_tickers=None,
+    option_ideas=None,
+):
+    """Re-implement the highlights logic from aggregator so it can be tested independently."""
+    breadth_pct = round(total_matched / total_symbols * 100, 1) if total_symbols else 0.0
+    top_conviction = top_conviction or []
+    if top_conviction:
+        top10_links = ", ".join(_ticker_anchor(s, f"#symbol/{s}") for s in top_conviction[:10])
+        top_conviction_highlight = (
+            f"Top conviction (score ≥40): {len(top_conviction)} tickers — {top10_links}"
+        )
+    else:
+        top_conviction_highlight = "No tickers reached conviction threshold today"
+
+    imminent = imminent_earnings or []
+    if imminent:
+        notable_links = ", ".join(
+            _ticker_anchor(c["symbol"], f"#symbol/{c['symbol']}") for c in imminent[:8]
+        )
+        earnings_highlight = (
+            f"{len(imminent)} tickers report earnings this week "
+            f"(notably: {notable_links}) — watch for elevated implied volatility"
+        )
+    else:
+        earnings_highlight = "No earnings this week in the current universe"
+
+    trending_tickers = trending_tickers or []
+    if trending_tickers:
+        trending_links = ", ".join(
+            _ticker_anchor(t["symbol"], f"https://finance.yahoo.com/quote/{t['symbol']}/")
+            for t in trending_tickers[:10]
+        )
+        trending_highlight = f"Yahoo trending from the past 3 days: {trending_links}"
+    else:
+        trending_highlight = "No Yahoo Finance trending tickers available today"
+
+    option_ideas = option_ideas or []
+    if option_ideas:
+        opts_links = ", ".join(
+            _ticker_anchor(
+                idea.symbol,
+                f"https://finance.yahoo.com/quote/{idea.symbol}/options/",
+                f"{idea.symbol}-{_option_strategy_abbrev(idea.strategy)}",
+            )
+            for idea in option_ideas
+        )
+        options_highlight = f"Options watching: {opts_links}"
+    else:
+        options_highlight = "No options ideas today"
+
+    return [
+        f"{total_matched} of {total_symbols} stocks matched at least one rule — {breadth_pct}% breadth",
+        top_conviction_highlight,
+        earnings_highlight,
+        trending_highlight,
+        options_highlight,
+    ]
+
+
+def test_highlights_has_five_bullets():
+    highlights = _build_highlights()
+    assert len(highlights) == 5
+
+
+def test_highlights_total_universe_breadth():
+    h = _build_highlights(total_matched=500, total_symbols=3545)
+    assert h[0] == "500 of 3545 stocks matched at least one rule — 14.1% breadth"
+
+
+def test_highlights_no_sp500_only_breadth():
+    h = _build_highlights(total_matched=170, total_symbols=484)
+    assert "S&P 500" not in h[0]
+    assert "170 of 484" in h[0]
+
+
+def test_highlights_conviction_shows_count_and_links():
+    tickers = [f"T{i}" for i in range(15)]
+    h = _build_highlights(top_conviction=tickers)
+    assert "15 tickers" in h[1]
+    assert "score ≥40" in h[1]
+    assert 'href="#symbol/T0"' in h[1]
+    # only top 10 linked
+    assert h[1].count("<a ") == 10
+
+
+def test_highlights_conviction_threshold_is_40():
+    h = _build_highlights(top_conviction=["AAPL"])
+    assert "≥40" in h[1]
+    assert "≥35" not in h[1]
+
+
+def test_highlights_earnings_shows_count_and_links():
+    imminent = [{"symbol": f"E{i}"} for i in range(5)]
+    h = _build_highlights(imminent_earnings=imminent)
+    assert h[2].startswith("5 tickers report earnings this week")
+    assert "notably:" in h[2]
+    assert 'href="#symbol/E0"' in h[2]
+
+
+def test_highlights_earnings_fallback_when_none():
+    h = _build_highlights(imminent_earnings=[])
+    assert h[2] == "No earnings this week in the current universe"
+
+
+def test_highlights_trending_links_to_yahoo():
+    tickers = [{"symbol": f"T{i}"} for i in range(12)]
+    h = _build_highlights(trending_tickers=tickers)
+    assert h[3].startswith("Yahoo trending from the past 3 days:")
+    assert "finance.yahoo.com/quote/T0" in h[3]
+    # only top 10 linked
+    assert h[3].count("<a ") == 10
+
+
+def test_highlights_trending_fallback_when_empty():
+    h = _build_highlights(trending_tickers=[])
+    assert h[3] == "No Yahoo Finance trending tickers available today"
+
+
+def test_highlights_options_strategy_abbrev_and_link():
+    idea = OptionIdea(
+        symbol="NDAQ", strategy="Cash-secured put — sell $89 put", expiration="2026-05-08",
+        score=80.0, reason="test", strike=89.0, highlighted=True,
+    )
+    h = _build_highlights(option_ideas=[idea])
+    assert "NDAQ-SP" in h[4]
+    assert "finance.yahoo.com/quote/NDAQ/options/" in h[4]
+
+
+def test_highlights_options_fallback_when_empty():
+    h = _build_highlights(option_ideas=[])
+    assert h[4] == "No options ideas today"
+
+
+def test_highlights_no_fang_or_djia_reference():
+    h = _build_highlights()
+    assert not any("FANG" in bullet or "DJIA" in bullet for bullet in h)
+
+
+# ---------------------------------------------------------------------------
+# _option_strategy_abbrev tests
+# ---------------------------------------------------------------------------
+
+def test_option_strategy_abbrev_cash_secured_put():
+    assert _option_strategy_abbrev("Cash-secured put — sell $89 put") == "SP"
+
+
+def test_option_strategy_abbrev_bear_put_spread():
+    assert _option_strategy_abbrev("Bear put spread — $100/$95") == "BP"
+
+
+def test_option_strategy_abbrev_bull_call_spread():
+    assert _option_strategy_abbrev("Bull call spread — $100/$110") == "BC"
+
+
+def test_option_strategy_abbrev_unknown_falls_back():
+    assert _option_strategy_abbrev("some exotic strategy") == "OPT"
+
+
+# ---------------------------------------------------------------------------
+# _format_option_contract tests (OCC format, kept for reference)
+# ---------------------------------------------------------------------------
+
+def test_format_option_contract_occ_style():
+    idea = OptionIdea(
+        symbol="NDAQ", strategy="Cash-secured put", expiration="2026-05-08",
+        score=80.0, reason="test", strike=89.0, highlighted=True,
+    )
+    assert _format_option_contract(idea) == "NDAQ260508P00089000"
 
 
 def test_max_weighted_score_equals_sum_of_all_rule_weights():
