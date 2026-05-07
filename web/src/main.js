@@ -22,11 +22,16 @@ function injectTradingViewChart(symbol) {
     style: '1',
     locale: 'en',
     withdateranges: true,
-    range: '6M',
+    range: '12M',
     hide_side_toolbar: true,
     allow_symbol_change: false,
     save_image: false,
     calendar: false,
+    studies: [
+      { id: 'MASimple@tv-basicstudies', inputs: { length: 5 } },
+      { id: 'MASimple@tv-basicstudies', inputs: { length: 20 } },
+      { id: 'MASimple@tv-basicstudies', inputs: { length: 200 } },
+    ],
   });
 
   inner.appendChild(script);
