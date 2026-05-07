@@ -355,7 +355,7 @@ function renderBulletinsTicker(signals = []) {
   `;
 }
 
-function renderTrendingTickerCard(ticker, rank) {
+function renderTrendingTickerCard(ticker, rank, trackedSymbols = new Set()) {
   const changeClass1d = ticker.change1d >= 0 ? 'trend-change-positive' : 'trend-change-negative';
   const changeClass3d = ticker.change3d >= 0 ? 'trend-change-positive' : 'trend-change-negative';
   const arrow1d = ticker.change1d >= 0 ? '▲' : '▼';
@@ -366,6 +366,9 @@ function renderTrendingTickerCard(ticker, rank) {
   const headline = ticker.headlines && ticker.headlines.length
     ? `<p class="signal-reason">${escapeHtml(ticker.headlines[0])}</p>`
     : '';
+  const symbolLink = trackedSymbols.has(ticker.symbol)
+    ? `<a href="#symbol/${encodeURIComponent(ticker.symbol)}" class="trend-symbol-link symbol-detail-link">${escapeHtml(ticker.symbol)}</a>`
+    : `<a href="${yahooUrl(ticker.symbol)}" target="_blank" rel="noopener noreferrer" class="trend-symbol-link">${escapeHtml(ticker.symbol)}</a>`;
   return `
     <article class="surface-card signal-card hard-shadow-hover">
       <div class="trending-card-rank">#${escapeHtml(String(rank))}</div>
@@ -373,7 +376,7 @@ function renderTrendingTickerCard(ticker, rank) {
         <div>
           <span class="card-kicker">Trending</span>
           <h3>
-            <a href="${yahooUrl(ticker.symbol)}" target="_blank" rel="noopener noreferrer" class="trend-symbol-link">${escapeHtml(ticker.symbol)}</a>
+            ${symbolLink}
             ${companyDisplay}
           </h3>
         </div>
@@ -402,7 +405,7 @@ function renderTrendingTickerCard(ticker, rank) {
   `;
 }
 
-function renderTrendingTickers(tickers = []) {
+function renderTrendingTickers(tickers = [], trackedSymbols = new Set()) {
   if (!tickers.length) return '';
   return `
     <section id="trending" class="report-section">
@@ -412,7 +415,7 @@ function renderTrendingTickers(tickers = []) {
         <p>Top movers and most-watched names on Yahoo Finance over the past 3 trading days.</p>
       </div>
       <div class="card-grid">
-        ${tickers.map((t, i) => renderTrendingTickerCard(t, t.trendRank ?? i + 1)).join('')}
+        ${tickers.map((t, i) => renderTrendingTickerCard(t, t.trendRank ?? i + 1, trackedSymbols)).join('')}
       </div>
     </section>
   `;
@@ -876,7 +879,10 @@ export function renderReportApp(report) {
             </div>
           </section>
 
-          ${renderTrendingTickers(normalized.trendingTickers)}
+          ${renderTrendingTickers(normalized.trendingTickers, new Set([
+            ...(normalized.stockSignals ?? []).map(s => s.symbol),
+            ...(normalized.optionsSignals ?? []).map(s => s.symbol),
+          ]))}
 
           <section id="watchlists" class="report-section">
             <div class="section-heading">
