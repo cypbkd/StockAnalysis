@@ -386,7 +386,9 @@ def test_evaluate_report_date_no_report():
 # ---------------------------------------------------------------------------
 
 def test_run_nightly_evaluation_writes_eval_and_summary():
-    signal_date = nth_trading_day_before("2026-05-10", 3)
+    # 2026-05-09 is a Friday (weekday=4) — normal weekday path
+    run_date = "2026-05-09"
+    signal_date = nth_trading_day_before(run_date, 3)
     report = {
         "reportDate": signal_date,
         "stockSignals": [
@@ -397,13 +399,13 @@ def test_run_nightly_evaluation_writes_eval_and_summary():
     }
     eval_records = [
         {"ticker": "AAPL", "direction": "bullish", "win": True, "return3d": 2.0,
-         "signalDate": signal_date, "exitDate": "2026-05-10",
+         "signalDate": signal_date, "exitDate": run_date,
          "ruleKeys": ["ma_stack"], "entryPrice": 100.0, "exitPrice": 102.0},
         {"ticker": "AAPL", "direction": "bullish", "win": True, "return3d": 1.5,
-         "signalDate": signal_date, "exitDate": "2026-05-10",
+         "signalDate": signal_date, "exitDate": run_date,
          "ruleKeys": ["ma_stack"], "entryPrice": 100.0, "exitPrice": 101.5},
         {"ticker": "AAPL", "direction": "bullish", "win": False, "return3d": -0.5,
-         "signalDate": signal_date, "exitDate": "2026-05-10",
+         "signalDate": signal_date, "exitDate": run_date,
          "ruleKeys": ["ma_stack"], "entryPrice": 100.0, "exitPrice": 99.5},
     ]
 
@@ -419,14 +421,41 @@ def test_run_nightly_evaluation_writes_eval_and_summary():
 
     with patch("stock_analysis.evaluation._fetch_prices_batch", return_value={"AAPL": 102.0}):
         with patch("stock_analysis.evaluation.load_eval_files", return_value=eval_records):
-            result = run_nightly_evaluation(s3, "test-bucket", "2026-05-10")
+            result = run_nightly_evaluation(s3, "test-bucket", run_date)
 
     assert result is not None
     assert "tickers" in result
-    # Summary file written
+    # Both the daily eval file and the summary file should be written
     put_keys = [call[1]["Key"] for call in s3.put_object.call_args_list]
     assert any("evaluations/" in k and k.endswith(".json") for k in put_keys)
     assert any(k == "evaluations/compliance-summary.json" for k in put_keys)
+
+
+def test_run_nightly_evaluation_weekend_skips_price_fetch_and_writes_empty_file():
+    """Weekend run_date must write an empty eval file without calling yfinance."""
+    # 2026-05-11 is a Sunday (weekday=6)
+    run_date = "2026-05-11"
+    signal_date = nth_trading_day_before(run_date, 3)
+
+    s3 = MagicMock()
+    s3.head_object.side_effect = Exception("NoSuchKey")  # eval file doesn't exist yet
+
+    with patch("stock_analysis.evaluation._fetch_prices_batch") as mock_fetch:
+        with patch("stock_analysis.evaluation.load_eval_files", return_value=[]):
+            run_nightly_evaluation(s3, "test-bucket", run_date)
+
+    # yfinance must NOT be called on weekends
+    mock_fetch.assert_not_called()
+
+    # Empty eval file must be written so future runs see already_done=True
+    put_keys = [call[1]["Key"] for call in s3.put_object.call_args_list]
+    assert f"evaluations/{signal_date}.json" in put_keys
+    eval_body = next(
+        call[1]["Body"]
+        for call in s3.put_object.call_args_list
+        if call[1]["Key"] == f"evaluations/{signal_date}.json"
+    )
+    assert json.loads(eval_body) == []
 
 
 def test_run_nightly_evaluation_skips_already_evaluated():
@@ -435,12 +464,11 @@ def test_run_nightly_evaluation_skips_already_evaluated():
     s3.head_object.return_value = {}
 
     with patch("stock_analysis.evaluation.load_eval_files", return_value=[]):
-        result = run_nightly_evaluation(s3, "test-bucket", "2026-05-10")
+        result = run_nightly_evaluation(s3, "test-bucket", "2026-05-09")
 
-    # No new eval file written (put_object only called for summary if records exist)
+    # No new eval file written (already_done=True skips the write block)
     put_keys = [call[1].get("Key", "") for call in s3.put_object.call_args_list]
-    # The daily eval file should NOT be in put_keys
-    signal_date = nth_trading_day_before("2026-05-10", 3)
+    signal_date = nth_trading_day_before("2026-05-09", 3)
     assert f"evaluations/{signal_date}.json" not in put_keys
 
 
