@@ -297,3 +297,89 @@ def test_build_nightly_report_defaults_news_summary_to_empty_string():
         highlights=[],
     )
     assert report["newsSummary"] == ""
+
+
+def _s1_bounce_rule():
+    from stock_analysis.data import RULE_CONFIGS
+    return CanonicalRule.from_mapping(RULE_CONFIGS["pivot_s1_bounce"]["rule_def"])
+
+
+def _make_s1_snapshot(symbol, *, close, open_, rsi, close_to_s1_pct):
+    """Build a minimal MarketSnapshot for S1 Bounce rule testing."""
+    # Derive a synthetic S1 from close_to_s1_pct: close = s1 * (1 + pct/100)
+    s1 = round(close / (1 + close_to_s1_pct / 100), 2)
+    return MarketSnapshot(
+        symbol=symbol,
+        metrics={
+            "close": close,
+            "open": open_,
+            "rsi_14": rsi,
+            "close_to_s1_pct": close_to_s1_pct,
+            "pivot_s1": s1,
+        },
+    )
+
+
+def test_s1_bounce_matches_green_candle_at_support_with_rsi_in_range():
+    """Green candle within 3% above S1, RSI 30–45 → should match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    snap = _make_s1_snapshot("AAPL", close=102.0, open_=100.0, rsi=38.0, close_to_s1_pct=2.0)
+    results = {r.symbol: r for r in engine.screen([snap], rule)}
+    assert results["AAPL"].matched is True
+
+
+def test_s1_bounce_rejects_red_candle_at_support():
+    """Red candle (close < open) at S1 — stock still falling, should not match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    snap = _make_s1_snapshot("TECH", close=99.0, open_=101.0, rsi=38.0, close_to_s1_pct=1.0)
+    results = {r.symbol: r for r in engine.screen([snap], rule)}
+    assert results["TECH"].matched is False, "red candle at S1 is a breakdown, not a bounce"
+
+
+def test_s1_bounce_rejects_rsi_above_ceiling():
+    """RSI >= 45 means not weak enough — too close to neutral, should not match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    snap = _make_s1_snapshot("MSFT", close=102.0, open_=100.0, rsi=47.0, close_to_s1_pct=1.5)
+    results = {r.symbol: r for r in engine.screen([snap], rule)}
+    assert results["MSFT"].matched is False, "RSI 47 is above the 45 ceiling"
+
+
+def test_s1_bounce_rejects_rsi_in_freefall():
+    """RSI < 30 means panic selling, not a stabilising bounce — should not match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    snap = _make_s1_snapshot("NVDA", close=102.0, open_=100.0, rsi=27.0, close_to_s1_pct=1.0)
+    results = {r.symbol: r for r in engine.screen([snap], rule)}
+    assert results["NVDA"].matched is False, "RSI 27 is freefall territory"
+
+
+def test_s1_bounce_rejects_price_too_far_above_s1():
+    """Price > 3% above S1 — not at support, should not match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    snap = _make_s1_snapshot("AMZN", close=105.0, open_=103.0, rsi=38.0, close_to_s1_pct=5.0)
+    results = {r.symbol: r for r in engine.screen([snap], rule)}
+    assert results["AMZN"].matched is False, "price is 5% above S1, not at support"
+
+
+def test_s1_bounce_rejects_price_below_s1():
+    """Price below S1 (negative pct) — support already broken, should not match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    snap = _make_s1_snapshot("GOOG", close=98.0, open_=96.0, rsi=38.0, close_to_s1_pct=-2.0)
+    results = {r.symbol: r for r in engine.screen([snap], rule)}
+    assert results["GOOG"].matched is False, "price below S1 means support broke"
+
+
+def test_s1_bounce_accepts_rsi_boundary_values():
+    """RSI exactly at 30 (floor) and 44 (just below ceiling) should both match."""
+    engine = DeterministicScreeningEngine()
+    rule = _s1_bounce_rule()
+    at_floor = _make_s1_snapshot("LOW1", close=102.0, open_=100.0, rsi=30.0, close_to_s1_pct=1.0)
+    near_ceiling = _make_s1_snapshot("LOW2", close=102.0, open_=100.0, rsi=44.0, close_to_s1_pct=1.0)
+    results = {r.symbol: r for r in engine.screen([at_floor, near_ceiling], rule)}
+    assert results["LOW1"].matched is True, "RSI 30 is the floor, should match"
+    assert results["LOW2"].matched is True, "RSI 44 is just below ceiling, should match"

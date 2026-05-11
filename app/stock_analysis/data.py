@@ -235,16 +235,18 @@ RULE_CONFIGS: Dict[str, Dict] = {
         "name": "Pivot S1 Bounce",
         "priority": "high",
         "weight": 1.0,  # Tactical/Minor: short-term support hold, needs other confirmation
-        "rule_summary": "Price holding within 3% above S1 pivot support with RSI not stretched — classic intraday support hold",
+        "rule_summary": "Price closed above open within 3% above S1 support, RSI 30–45 — buyers stepped in at support with stabilising momentum",
         "rule_def": {
             "logic": "and",
             "name": "Pivot S1 Bounce",
-            "description": "Price just above S1 pivot support (within 3%) with RSI below 50 — holding support after a test.",
-            "source_text": "Find names where price is within 3% above S1 and RSI < 50 — pivot support holding, potential bounce entry.",
+            "description": "Green candle (close > open) within 3% above S1 pivot support, RSI 30–45 — confirmed intraday buying at support, not a breakdown.",
+            "source_text": "Find names where price closed above open within 3% above S1, RSI between 30 and 45 — buyers defending support with stabilising momentum; excludes freefall stocks (RSI < 30) and stocks merely drifting to support without a reversal candle.",
             "conditions": [
                 {"field": "close_to_s1_pct", "op": ">=", "value": 0.0},
                 {"field": "close_to_s1_pct", "op": "<=", "value": 3.0},
-                {"field": "rsi_14", "op": "<", "value": 50},
+                {"field": "close", "op": ">", "value_from": "open"},
+                {"field": "rsi_14", "op": ">=", "value": 30},
+                {"field": "rsi_14", "op": "<", "value": 45},
             ],
         },
     },
