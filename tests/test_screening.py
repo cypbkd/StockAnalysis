@@ -383,3 +383,153 @@ def test_s1_bounce_accepts_rsi_boundary_values():
     results = {r.symbol: r for r in engine.screen([at_floor, near_ceiling], rule)}
     assert results["LOW1"].matched is True, "RSI 30 is the floor, should match"
     assert results["LOW2"].matched is True, "RSI 44 is just below ceiling, should match"
+
+
+# ---------------------------------------------------------------------------
+# Bearish rule tests
+# ---------------------------------------------------------------------------
+
+def _rule(key):
+    from stock_analysis.data import RULE_CONFIGS
+    return CanonicalRule.from_mapping(RULE_CONFIGS[key]["rule_def"])
+
+
+def test_bearish_ma_stack_matches_full_bearish_alignment():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("bearish_ma_stack")
+    snap = MarketSnapshot(
+        symbol="XYZ",
+        metrics={"close": 80.0, "ema_20": 85.0, "sma_50": 90.0, "rsi_14": 40.0},
+    )
+    assert engine.evaluate(snap, rule).matched is True
+
+
+def test_bearish_ma_stack_rejects_when_close_above_ema():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("bearish_ma_stack")
+    snap = MarketSnapshot(
+        symbol="XYZ",
+        metrics={"close": 90.0, "ema_20": 85.0, "sma_50": 80.0, "rsi_14": 40.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "close > ema_20 — not bearish"
+
+
+def test_bearish_ma_stack_rejects_rsi_at_panic_floor():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("bearish_ma_stack")
+    snap = MarketSnapshot(
+        symbol="XYZ",
+        metrics={"close": 80.0, "ema_20": 85.0, "sma_50": 90.0, "rsi_14": 20.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "RSI 20 is panic territory"
+
+
+def test_sma200_breakdown_matches_fresh_cross_on_volume():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("sma200_breakdown")
+    snap = MarketSnapshot(
+        symbol="TSLA",
+        metrics={"close": 195.0, "sma_200": 200.0, "prev_close": 205.0, "volume_ratio": 2.0},
+    )
+    assert engine.evaluate(snap, rule).matched is True
+
+
+def test_sma200_breakdown_rejects_already_below():
+    """If prev_close was already below sma_200, it's not a fresh breakdown."""
+    engine = DeterministicScreeningEngine()
+    rule = _rule("sma200_breakdown")
+    snap = MarketSnapshot(
+        symbol="TSLA",
+        metrics={"close": 195.0, "sma_200": 200.0, "prev_close": 198.0, "volume_ratio": 2.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "prev_close already below sma_200"
+
+
+def test_sma200_breakdown_rejects_low_volume():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("sma200_breakdown")
+    snap = MarketSnapshot(
+        symbol="TSLA",
+        metrics={"close": 195.0, "sma_200": 200.0, "prev_close": 205.0, "volume_ratio": 1.2},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "volume_ratio < 1.5 — unconfirmed"
+
+
+def test_rsi_overbought_reversal_matches():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("rsi_overbought_reversal")
+    snap = MarketSnapshot(
+        symbol="META",
+        metrics={"rsi_14": 72.0, "change_percent": -2.0, "close": 88.0, "sma_20": 90.0},
+    )
+    assert engine.evaluate(snap, rule).matched is True
+
+
+def test_rsi_overbought_reversal_rejects_not_overbought():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("rsi_overbought_reversal")
+    snap = MarketSnapshot(
+        symbol="META",
+        metrics={"rsi_14": 65.0, "change_percent": -2.0, "close": 88.0, "sma_20": 90.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "RSI 65 not overbought"
+
+
+def test_rsi_overbought_reversal_rejects_small_drop():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("rsi_overbought_reversal")
+    snap = MarketSnapshot(
+        symbol="META",
+        metrics={"rsi_14": 72.0, "change_percent": -0.5, "close": 88.0, "sma_20": 90.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "drop < 1.5% — too small"
+
+
+def test_high_vol_selloff_matches():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("high_vol_selloff")
+    snap = MarketSnapshot(
+        symbol="NVDA",
+        metrics={"volume_ratio": 2.5, "rsi_14": 38.0, "close": 90.0, "sma_20": 95.0},
+    )
+    assert engine.evaluate(snap, rule).matched is True
+
+
+def test_high_vol_selloff_rejects_price_above_sma20():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("high_vol_selloff")
+    snap = MarketSnapshot(
+        symbol="NVDA",
+        metrics={"volume_ratio": 2.5, "rsi_14": 38.0, "close": 100.0, "sma_20": 95.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "price above SMA-20 is not a selloff"
+
+
+def test_strong_downtrend_day_matches():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("strong_downtrend_day")
+    snap = MarketSnapshot(
+        symbol="AMZN",
+        metrics={"change_percent": -4.0, "close": 85.0, "sma_20": 90.0, "volume_ratio": 2.0},
+    )
+    assert engine.evaluate(snap, rule).matched is True
+
+
+def test_strong_downtrend_day_rejects_small_drop():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("strong_downtrend_day")
+    snap = MarketSnapshot(
+        symbol="AMZN",
+        metrics={"change_percent": -1.5, "close": 85.0, "sma_20": 90.0, "volume_ratio": 2.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "drop < 3%"
+
+
+def test_strong_downtrend_day_rejects_low_volume():
+    engine = DeterministicScreeningEngine()
+    rule = _rule("strong_downtrend_day")
+    snap = MarketSnapshot(
+        symbol="AMZN",
+        metrics={"change_percent": -4.0, "close": 85.0, "sma_20": 90.0, "volume_ratio": 1.0},
+    )
+    assert engine.evaluate(snap, rule).matched is False, "volume_ratio < 1.5"

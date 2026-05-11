@@ -167,18 +167,28 @@ All 14 rules run against every deduplicated ticker on each nightly run. A ticker
 | `pivot_r1_breakout` | Pivot R1 Breakout (压力位) | close_to_r1_pct <= 0 AND volume_ratio >= 1.5 |
 | `td_buy` | TD Sequential Buy Setup (神奇九转买入) | td_buy_setup >= 9 |
 | `td_sell` | TD Sequential Sell Setup (神奇九转卖出) | td_sell_setup >= 9 |
+| `bearish_ma_stack` | Bearish MA Stack | close < EMA-20 AND EMA-20 < SMA-50 AND RSI > 25 |
+| `sma200_breakdown` | SMA-200 Breakdown | close < SMA-200 AND prev_close >= SMA-200 (fresh) AND volume_ratio >= 1.5 |
+| `rsi_overbought_reversal` | RSI Overbought Reversal | RSI >= 70 AND change_percent <= -1.5 AND close < SMA-20 |
+| `high_vol_selloff` | High-Volume Selloff | volume_ratio >= 2.0 AND RSI <= 45 AND close < SMA-20 |
+| `strong_downtrend_day` | Strong Downtrend Day | change_percent <= -3.0 AND close < SMA-20 AND volume_ratio >= 1.5 |
 
 **Signal priority:** `high priority` = `weighted_score` ≥ 35 (out of 100); `matched` = any lower score.
 
-**Weighted scoring:** Each rule carries a `weight` field in `RULE_CONFIGS`. `weighted_score = sum(matched rule weights) / MAX_WEIGHTED_SCORE * 100`. `MAX_WEIGHTED_SCORE` = 21.5 (sum of all 14 rule weights).
+**Weighted scoring (side-aware):** Each rule has a `weight` and a `side` ("bullish" or "bearish") field. Scoring is computed separately per side so each is symmetric:
+- `bullish_score = sum(matched bullish rule weights) / BULLISH_MAX_WEIGHT * 100`
+- `bearish_score = sum(matched bearish rule weights) / BEARISH_MAX_WEIGHT * 100`
+- `weighted_score = max(bullish_score, bearish_score)`
 
-| Weight | Rules |
-|---|---|
-| 2.0 (Primary Momentum) | `ath_breakout`, `golden_cross`, `strong_trending_day`, `high_vol_day` |
-| 1.5 (Confirmation + Contrarian) | `ma_stack`, `pre_earnings_momentum`, `pivot_r1_breakout`, `oversold_dip`, `td_buy`, `td_sell`, `near_52w_support` |
-| 1.0 (Tactical/Minor) | `near_ath`, `pivot_s1_bounce`, `dead_cross` |
+This ensures a stock matching 3 strong bearish rules scores as high as one matching 3 equivalent bullish rules.
 
-The score (0–100) is displayed as a dark badge in the top-right corner of each signal card on the daily report. Signals are sorted by `weighted_score` descending. The `rule_key` is now stored in worker chunk data so aggregator can look up weights without re-matching.
+`BULLISH_MAX_WEIGHT` = 19.0 (12 bullish rules). `BEARISH_MAX_WEIGHT` = 11.5 (7 bearish rules).
+
+| Weight | Bullish Rules | Bearish Rules |
+|---|---|---|
+| 2.0 (Primary) | `ath_breakout`, `golden_cross`, `strong_trending_day`, `high_vol_day` | `sma200_breakdown`, `high_vol_selloff`, `strong_downtrend_day` |
+| 1.5 (Confirmation/Reversal) | `ma_stack`, `pre_earnings_momentum`, `pivot_r1_breakout`, `oversold_dip`, `td_buy`, `near_52w_support` | `bearish_ma_stack`, `rsi_overbought_reversal`, `td_sell` |
+| 1.0 (Tactical) | `near_ath`, `pivot_s1_bounce` | `dead_cross` |
 
 Rules are hardcoded in `app/stock_analysis/data.py → RULE_CONFIGS`. DynamoDB-backed loading is a future task.
 
@@ -376,7 +386,7 @@ Three alarms fire into this topic:
 - CloudFront auto-invalidation after each nightly report publish
 - Newsprint static dashboard — live at https://d2r08g384yeqpo.cloudfront.net
 - Yahoo Finance links on all ticker symbols (quote page for signal/earnings cards, options page with strike for options cards)
-- **14 active rules**: Bullish MA Stack, Golden Cross, Dead Cross, ATH Breakout, Near-ATH Consolidation, Oversold Dip, Pre-Earnings Momentum, High-Volume Day, Strong Trending Day, Near 52-Week Support, Pivot S1 Bounce, Pivot R1 Breakout, TD Sequential Buy (神奇九转), TD Sequential Sell
+- **19 active rules** (12 bullish, 7 bearish): Bullish MA Stack, Golden Cross, ATH Breakout, Near-ATH Consolidation, Oversold Dip, Pre-Earnings Momentum, High-Volume Day, Strong Trending Day, Near 52-Week Support, Pivot S1 Bounce, Pivot R1 Breakout, TD Sequential Buy (神奇九转) — plus Dead Cross, TD Sequential Sell, Bearish MA Stack, SMA-200 Breakdown, RSI Overbought Reversal, High-Volume Selloff, Strong Downtrend Day
 - Ticker deduplication in coordinator — each ticker fetched and screened exactly once; all rules applied in one pass per ticker
 - Signal `ruleNames[]` array — tags show the rule name (e.g. "Bullish MA Stack") not the watchlist display name
 - Priority by match count: `high priority` ≥ **5** rules matched; `matched` = 1–4 rules
@@ -385,7 +395,7 @@ Three alarms fire into this topic:
 - `scripts/run-aggregator.sh` — invoke aggregator only (skips coordinator + workers); useful after news/config fixes
 - Historical report navigation via `/?date=YYYY-MM-DD`
 - CloudWatch alarms for coordinator errors, aggregator errors, DLQ depth
-- Full test suite: Python pytest (148), CDK Jest (15), JS node:test (48) = **211 tests**
+- Full test suite: Python pytest (163), CDK Jest (15), JS node:test (67) = **245 tests**
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
 - **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Yahoo Finance chart link; back navigation; Trigger Values section now includes Bullish/Bearish tag and matched rule name pills
 - `COMPANY_NAMES` expanded to ~300 entries covering full S&P 500 + QQQ + DJIA + all watchlist tickers (was ~70 with duplicate keys)
@@ -416,9 +426,6 @@ Three alarms fire into this topic:
 2. **Subscribe alarm email** — manual: `aws sns subscribe` to `dev-stock-analysis-alarms`
 3. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
 4. **Mobile layout** — current grid is desktop-first
-5. **DynamoDB-backed rules** — `RULE_CONFIGS` is hardcoded in `data.py`; load from `dev-rules` table at runtime so rules can be updated without a redeploy (mirrors how watchlists work)
-6. **DynamoDB-backed run history** — `dev-runs` table is provisioned but unused; record each nightly run's metadata (date, ticker count, signal count, S3 report key) so run history can be queried without scanning S3
-7. **Balanced bearish signals** — the screener is long-only today (`BULLISH_RULES` has 6 rules, `BEARISH_RULES` only has `dead_cross` and `td_sell` which are not wired into active rule sets). Add active bearish `CanonicalRule` entries (e.g. death cross, breakdown below 200-day MA, RSI overbought + reversal) so the nightly report surfaces short-side candidates alongside bullish ones. The Bullish/Bearish tag in the Trigger Values UI is already in place.
 
 ### Out of scope for MVP
 - Real-time intraday screening

@@ -38,6 +38,7 @@ SUPPORTED_FIELDS = {
     "close_to_r1_pct",
     "td_buy_setup",
     "td_sell_setup",
+    "prev_close",
 }
 
 SUPPORTED_OPERATORS = {"<", "<=", ">", ">=", "==", "!=", "in", "not in"}
