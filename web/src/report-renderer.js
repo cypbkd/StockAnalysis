@@ -299,6 +299,56 @@ function renderEarningsCalendar(earningsWatch, reportDate) {
   `;
 }
 
+function renderTickerCompliance(compliance) {
+  if (!compliance || !Array.isArray(compliance.tickers) || !compliance.tickers.length) {
+    return '';
+  }
+
+  const rows = compliance.tickers.slice(0, 20).map(t => {
+    const winRatePct = (t.winRate * 100).toFixed(0);
+    const badgeClass = t.winRate >= 0.65 ? 'compliance-badge-high'
+      : t.winRate >= 0.5 ? 'compliance-badge-mid'
+      : 'compliance-badge-low';
+    const retClass = t.avgReturn3d >= 0 ? 'is-positive' : 'is-negative';
+    return `
+      <tr>
+        <td class="compliance-ticker">
+          <a href="#symbol/${encodeURIComponent(t.ticker)}" class="symbol-detail-link">${escapeHtml(t.ticker)}</a>
+        </td>
+        <td class="font-mono compliance-num">${escapeHtml(String(t.totalSignals))}</td>
+        <td class="font-mono compliance-num">${escapeHtml(String(t.wins))}/${escapeHtml(String(t.totalSignals))}</td>
+        <td><span class="compliance-badge ${badgeClass}">${escapeHtml(winRatePct)}%</span></td>
+        <td class="font-mono compliance-num ${retClass}">${escapeHtml(formatPercent(t.avgReturn3d))}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const note = `Rolling ${compliance.lookbackDays || 90}-day window · min ${compliance.minSignals || 3} signals · Updated ${escapeHtml(compliance.updatedAt || '')}`;
+
+  return `
+    <section id="ticker-compliance" class="report-section">
+      <div class="section-heading">
+        <span class="section-label">Scorecard</span>
+        <h2>Ticker Compliance</h2>
+        <p>Tickers that followed our signals most reliably — 3-day forward return after each signal.</p>
+      </div>
+      <div class="surface-card compliance-card">
+        <p class="compliance-note">${escapeHtml(note)}</p>
+        <div class="compliance-table-wrapper">
+          <table class="compliance-table">
+            <thead>
+              <tr>
+                <th>Ticker</th><th>Signals</th><th>W / Total</th><th>Win Rate</th><th>Avg 3d Return</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderRuleCard(ruleSet) {
   return `
     <article class="surface-card rule-card hard-shadow-hover">
@@ -852,6 +902,7 @@ export function renderReportApp(report) {
             <a href="#earnings-watch">Earnings</a>
             <a href="#stock-signals">Stocks</a>
             <a href="#options-signals">Options</a>
+            ${normalized.tickerCompliance ? '<a href="#ticker-compliance">Scorecard</a>' : ''}
           </nav>
 
           ${renderBulletinsTicker(normalized.stockSignals)}
@@ -925,6 +976,8 @@ export function renderReportApp(report) {
             </div>
             ${renderList(normalized.optionsSignals, 'No options ideas matched this evening.', renderOptionCard)}
           </section>
+
+          ${renderTickerCompliance(normalized.tickerCompliance)}
 
           <div class="ornament-divider" aria-hidden="true">✧ ✧ ✧</div>
 
