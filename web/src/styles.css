@@ -1154,6 +1154,38 @@ dd {
   background: var(--neutral-100);
 }
 
+.reason-conditions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.reason-conditions-header .section-label {
+  margin-bottom: 0;
+}
+
+.tv-sentiment {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 3px;
+}
+
+.tv-sentiment-bullish { background: #d1fae5; color: #065f46; }
+.tv-sentiment-bearish { background: #fee2e2; color: #991b1b; }
+
+.condition-matched-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--neutral-200);
+}
+
 .reason-conditions .section-label {
   display: block;
   margin-bottom: 10px;
