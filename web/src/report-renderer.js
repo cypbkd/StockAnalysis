@@ -1005,9 +1005,9 @@ export function renderReportApp(report) {
           <nav class="quick-nav" aria-label="Report sections">
             <a href="#trending">Trending</a>
             <a href="#watchlists">Watchlists</a>
+            <a href="#earnings-watch">Earnings</a>
             <a href="#stock-signals">Stocks</a>
             <a href="#options-signals">Options</a>
-            <a href="#earnings-watch">Earnings</a>
             ${normalized.tickerCompliance ? '<a href="#ticker-compliance">Scorecard</a>' : ''}
           </nav>
 
@@ -1050,6 +1050,21 @@ export function renderReportApp(report) {
             ${renderList(normalized.watchlists, 'No watchlists configured.', renderWatchlistCard)}
           </section>
 
+          <section id="earnings-watch" class="report-section" data-section="earnings-watch">
+            <div class="section-heading">
+              <span class="section-label">Calendar</span>
+              <h2>Earnings Watch</h2>
+              <p>Names that deserve faster follow-up around the earnings window.</p>
+            </div>
+            ${normalized.earningsChartUrl ? `
+              <figure class="earnings-chart">
+                <img src="${escapeHtml(normalized.earningsChartUrl)}" alt="Most anticipated earnings releases this week" loading="lazy">
+                <figcaption>Source: Earnings Whispers — most anticipated releases for the week</figcaption>
+              </figure>
+            ` : ''}
+            ${renderEarningsCalendar(normalized.earningsWatch, normalized.reportDate)}
+          </section>
+
           <section id="stock-signals" class="report-section inverted-section" data-section="stock-signals">
             <div class="section-heading">
               <span class="section-label">Lead Tape</span>
@@ -1066,21 +1081,6 @@ export function renderReportApp(report) {
               <p>Directional and premium-selling candidates for next-day planning.</p>
             </div>
             ${renderList(normalized.optionsSignals, 'No options ideas matched this evening.', renderOptionCard)}
-          </section>
-
-          <section id="earnings-watch" class="report-section" data-section="earnings-watch">
-            <div class="section-heading">
-              <span class="section-label">Calendar</span>
-              <h2>Earnings Watch</h2>
-              <p>Names that deserve faster follow-up around the earnings window.</p>
-            </div>
-            ${normalized.earningsChartUrl ? `
-              <figure class="earnings-chart">
-                <img src="${escapeHtml(normalized.earningsChartUrl)}" alt="Most anticipated earnings releases this week" loading="lazy">
-                <figcaption>Source: Earnings Whispers — most anticipated releases for the week</figcaption>
-              </figure>
-            ` : ''}
-            ${renderEarningsCalendar(normalized.earningsWatch, normalized.reportDate)}
           </section>
 
           ${renderTickerCompliance(normalized.tickerCompliance)}
