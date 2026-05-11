@@ -140,32 +140,47 @@ function renderWatchlistCard(watchlist) {
   `;
 }
 
-function renderSignalCard(signal) {
-  const companyDisplay = signal.companyName && signal.companyName !== signal.symbol
-    ? `<span>${escapeHtml(signal.companyName)}</span>`
-    : '';
-  const scoreBadge = signal.score != null
-    ? `<span class="score-badge" title="Weighted signal score (0–100)">${signal.score}</span>`
-    : '';
+function renderSignalRow(signal) {
+  const companyName = signal.companyName && signal.companyName !== signal.symbol ? signal.companyName : '';
+  const changeClass = signal.changePercent >= 0 ? 'trend-change-positive' : 'trend-change-negative';
+  const statusClass = signal.status === 'high priority' ? 'pill pill-alert' : 'pill pill-soft';
+  const rules = (signal.ruleNames ?? []).filter(Boolean).map(n => `<span class="pill rule-tag">${escapeHtml(n)}</span>`).join(' ');
+  const score = signal.score != null ? `<span class="score-badge">${signal.score}</span>` : '—';
   return `
-    <article class="surface-card signal-card hard-shadow-hover">
-      <div class="card-topline">
-        <div>
-          <span class="card-kicker">Lead Signal</span>
-          <h3><a href="#symbol/${encodeURIComponent(signal.symbol)}" class="symbol-detail-link">${escapeHtml(signal.symbol)}</a> ${companyDisplay}</h3>
-          <div class="watchlist-tags">${(signal.watchlists ?? []).map(w => `<span class="pill pill-soft">${escapeHtml(w)}</span>`).join('')}</div>
-        </div>
-        ${scoreBadge}
-      </div>
-      <dl class="signal-meta">
-        <div><dt>Price</dt><dd>${escapeHtml(formatPrice(signal.lastPrice))}</dd></div>
-        <div><dt>Change</dt><dd>${escapeHtml(formatPercent(signal.changePercent))}</dd></div>
-        <div><dt>Status</dt><dd>${escapeHtml(signal.status)}</dd></div>
-      </dl>
-      <div class="rule-tags">
-        ${(signal.ruleNames ?? []).filter(Boolean).map(name => `<span class="pill rule-tag">${escapeHtml(name)}</span>`).join('')}
-      </div>
-    </article>
+    <tr class="trending-row">
+      <td class="tr-symbol">
+        <a href="#symbol/${encodeURIComponent(signal.symbol)}" class="trend-symbol-link symbol-detail-link">${escapeHtml(signal.symbol)}</a>
+        ${companyName ? `<span class="tr-subname">${escapeHtml(companyName)}</span>` : ''}
+      </td>
+      <td class="tr-price font-mono">${escapeHtml(formatPrice(signal.lastPrice))}</td>
+      <td class="tr-change font-mono ${changeClass}">${escapeHtml(formatPercent(signal.changePercent))}</td>
+      <td><span class="${statusClass}">${escapeHtml(signal.status)}</span></td>
+      <td>${score}</td>
+      <td class="tr-rules">${rules}</td>
+    </tr>
+  `;
+}
+
+function renderSignalTable(signals, emptyMsg) {
+  if (!signals || !signals.length) return `<p class="body-copy">${escapeHtml(emptyMsg)}</p>`;
+  return `
+    <div class="trending-table-wrap">
+      <table class="trending-table">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Change</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Rules</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${signals.map(s => renderSignalRow(s)).join('')}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -511,53 +526,29 @@ function renderBulletinsTicker(signals = []) {
   `;
 }
 
-function renderTrendingTickerCard(ticker, rank, trackedSymbols = new Set()) {
+function renderTrendingTickerRow(ticker, rank, trackedSymbols = new Set()) {
   const changeClass1d = ticker.change1d >= 0 ? 'trend-change-positive' : 'trend-change-negative';
   const changeClass3d = ticker.change3d >= 0 ? 'trend-change-positive' : 'trend-change-negative';
   const arrow1d = ticker.change1d >= 0 ? '▲' : '▼';
   const arrow3d = ticker.change3d >= 0 ? '▲' : '▼';
-  const companyDisplay = ticker.companyName && ticker.companyName !== ticker.symbol
-    ? `<span>${escapeHtml(ticker.companyName)}</span>`
-    : '';
-  const headline = ticker.headlines && ticker.headlines.length
-    ? `<p class="signal-reason">${escapeHtml(ticker.headlines[0])}</p>`
-    : '';
+  const companyName = ticker.companyName && ticker.companyName !== ticker.symbol ? ticker.companyName : '';
+  const note = ticker.headlines && ticker.headlines.length ? ticker.headlines[0] : '';
   const symbolLink = trackedSymbols.has(ticker.symbol)
     ? `<a href="#symbol/${encodeURIComponent(ticker.symbol)}" class="trend-symbol-link symbol-detail-link">${escapeHtml(ticker.symbol)}</a>`
     : `<a href="${yahooUrl(ticker.symbol)}" target="_blank" rel="noopener noreferrer" class="trend-symbol-link">${escapeHtml(ticker.symbol)}</a>`;
   return `
-    <article class="surface-card signal-card hard-shadow-hover">
-      <div class="trending-card-rank">#${escapeHtml(String(rank))}</div>
-      <div class="card-topline">
-        <div>
-          <span class="card-kicker">Trending</span>
-          <h3>
-            ${symbolLink}
-            ${companyDisplay}
-          </h3>
-        </div>
-        <div class="trend-price-col">
-          <span class="trend-price font-mono">${escapeHtml(formatPrice(ticker.lastPrice))}</span>
-        </div>
-      </div>
-      <dl class="signal-meta">
-        <div>
-          <dt>1-Day</dt>
-          <dd class="font-mono ${changeClass1d}">${escapeHtml(arrow1d)} ${escapeHtml(Math.abs(ticker.change1d).toFixed(2))}%</dd>
-        </div>
-        <div>
-          <dt>3-Day</dt>
-          <dd class="font-mono ${changeClass3d}">${escapeHtml(arrow3d)} ${escapeHtml(Math.abs(ticker.change3d).toFixed(2))}%</dd>
-        </div>
-        ${ticker.volumeRatio != null ? `
-        <div>
-          <dt>Vol Ratio</dt>
-          <dd class="font-mono">${escapeHtml(ticker.volumeRatio.toFixed(2))}×</dd>
-        </div>
-        ` : ''}
-      </dl>
-      ${headline}
-    </article>
+    <tr class="trending-row">
+      <td class="tr-rank font-mono">#${escapeHtml(String(rank))}</td>
+      <td class="tr-symbol">
+        ${symbolLink}
+        ${companyName ? `<span class="tr-subname">${escapeHtml(companyName)}</span>` : ''}
+      </td>
+      <td class="tr-price font-mono">${escapeHtml(formatPrice(ticker.lastPrice))}</td>
+      <td class="tr-change font-mono ${changeClass1d}">${escapeHtml(arrow1d)} ${escapeHtml(Math.abs(ticker.change1d).toFixed(2))}%</td>
+      <td class="tr-change font-mono ${changeClass3d}">${escapeHtml(arrow3d)} ${escapeHtml(Math.abs(ticker.change3d).toFixed(2))}%</td>
+      <td class="tr-vol font-mono">${ticker.volumeRatio != null ? escapeHtml(ticker.volumeRatio.toFixed(2)) + '×' : '—'}</td>
+      <td class="tr-note">${escapeHtml(note)}</td>
+    </tr>
   `;
 }
 
@@ -570,8 +561,23 @@ function renderTrendingTickers(tickers = [], trackedSymbols = new Set()) {
         <h2>Trending Tickers</h2>
         <p>Top movers and most-watched names on Yahoo Finance over the past 3 trading days.</p>
       </div>
-      <div class="card-grid">
-        ${tickers.map((t, i) => renderTrendingTickerCard(t, t.trendRank ?? i + 1, trackedSymbols)).join('')}
+      <div class="trending-table-wrap">
+        <table class="trending-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Ticker</th>
+              <th>Price</th>
+              <th>1-Day</th>
+              <th>3-Day</th>
+              <th>Vol Ratio</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tickers.map((t, i) => renderTrendingTickerRow(t, t.trendRank ?? i + 1, trackedSymbols)).join('')}
+          </tbody>
+        </table>
       </div>
     </section>
   `;
@@ -984,15 +990,10 @@ export function renderReportApp(report) {
         <main class="dashboard-main">
           <header class="masthead newsprint-texture">
             <div class="masthead-rule"></div>
-            <div class="masthead-topline">
-              <span>Vol. 1</span>
-              <span>${escapeHtml(editionDate)}</span>
-              <span>${escapeHtml(tzLabel)} Edition</span>
-            </div>
             <div class="masthead-title-row">
               <p class="masthead-kicker">Nightly market plan</p>
               <h1>${escapeHtml(displayTitle)}</h1>
-              <p class="masthead-stamp">Printed for the next session</p>
+              <p class="masthead-stamp">Published for the next trading session</p>
             </div>
             <div class="masthead-bottomline">
               <span>Published ${escapeHtml(generatedDate)}</span>
@@ -1002,12 +1003,11 @@ export function renderReportApp(report) {
           </header>
 
           <nav class="quick-nav" aria-label="Report sections">
-            <a href="#summary">Summary</a>
             <a href="#trending">Trending</a>
             <a href="#watchlists">Watchlists</a>
-            <a href="#earnings-watch">Earnings</a>
             <a href="#stock-signals">Stocks</a>
             <a href="#options-signals">Options</a>
+            <a href="#earnings-watch">Earnings</a>
             ${normalized.tickerCompliance ? '<a href="#ticker-compliance">Scorecard</a>' : ''}
           </nav>
 
@@ -1017,7 +1017,7 @@ export function renderReportApp(report) {
 
           <section id="summary" class="report-section lead-section newsprint-texture" data-section="summary-metrics">
             <article class="lead-story lead-story-full">
-              <span class="section-label">Front Page</span>
+              <span class="section-label">Summary</span>
               <h2>Today's Highlights</h2>
               ${normalized.newsSummary ? `<p class="hero-copy lead-copy">${escapeHtml(normalized.newsSummary)}</p>` : ''}
               ${renderFrontPageHighlights(normalized.highlights)}
@@ -1050,6 +1050,24 @@ export function renderReportApp(report) {
             ${renderList(normalized.watchlists, 'No watchlists configured.', renderWatchlistCard)}
           </section>
 
+          <section id="stock-signals" class="report-section inverted-section" data-section="stock-signals">
+            <div class="section-heading">
+              <span class="section-label">Lead Tape</span>
+              <h2>Top Stock Signals</h2>
+              <p>High-priority names for tomorrow based on trend, momentum, and event context.</p>
+            </div>
+            ${renderSignalTable(highPrioritySignals, 'No high-priority stock signals matched this evening.')}
+          </section>
+
+          <section id="options-signals" class="report-section" data-section="options-signals">
+            <div class="section-heading">
+              <span class="section-label">Derivatives Desk</span>
+              <h2>Top Options Ideas</h2>
+              <p>Directional and premium-selling candidates for next-day planning.</p>
+            </div>
+            ${renderList(normalized.optionsSignals, 'No options ideas matched this evening.', renderOptionCard)}
+          </section>
+
           <section id="earnings-watch" class="report-section" data-section="earnings-watch">
             <div class="section-heading">
               <span class="section-label">Calendar</span>
@@ -1065,32 +1083,13 @@ export function renderReportApp(report) {
             ${renderEarningsCalendar(normalized.earningsWatch, normalized.reportDate)}
           </section>
 
-          <section id="stock-signals" class="report-section inverted-section" data-section="stock-signals">
-            <div class="section-heading">
-              <span class="section-label">Lead Tape</span>
-              <h2>Top Stock Signals</h2>
-              <p>High-priority names for tomorrow based on trend, momentum, and event context.</p>
-            </div>
-            ${renderList(highPrioritySignals, 'No high-priority stock signals matched this evening.', renderSignalCard)}
-          </section>
-
-          <section id="options-signals" class="report-section" data-section="options-signals">
-            <div class="section-heading">
-              <span class="section-label">Derivatives Desk</span>
-              <h2>Top Options Ideas</h2>
-              <p>Directional and premium-selling candidates for next-day planning.</p>
-            </div>
-            ${renderList(normalized.optionsSignals, 'No options ideas matched this evening.', renderOptionCard)}
-          </section>
-
           ${renderTickerCompliance(normalized.tickerCompliance)}
 
           <div class="ornament-divider" aria-hidden="true">✧ ✧ ✧</div>
 
           <footer class="report-footer">
-            <span>Edition: Vol. 1.0</span>
             <span>Printed in ${escapeHtml(normalized.timezone)}</span>
-            <span>${escapeHtml(normalized.universe.name)} Evening Desk</span>
+            <span>Evening Desk</span>
           </footer>
         </main>
       </div>

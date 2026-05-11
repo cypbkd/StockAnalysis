@@ -755,45 +755,15 @@ dd {
 
 /* ── Trending Tickers section ─────────────────────────────── */
 
-.trending-card-rank {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--neutral-500, #888);
-  letter-spacing: 0.04em;
-}
-
 .trend-symbol-link {
   color: inherit;
   text-decoration: none;
+  font-weight: 700;
 }
 
 .trend-symbol-link:hover {
   text-decoration: underline;
   color: var(--accent);
-}
-
-.trend-company {
-  display: block;
-  margin-top: 4px;
-  font-family: 'Inter', 'Helvetica Neue', sans-serif;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--neutral-600, #666);
-  letter-spacing: 0.01em;
-}
-
-.trend-price-col {
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.trend-price {
-  font-size: 1.1rem;
-  font-weight: 700;
 }
 
 .trend-change-positive {
@@ -802,6 +772,108 @@ dd {
 
 .trend-change-negative {
   color: var(--accent);
+}
+
+/* ── Trending tickers table ───────────────────────────────── */
+.trending-table-wrap {
+  overflow-x: auto;
+}
+
+.trending-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.trending-table thead th {
+  text-align: left;
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--neutral-500, #888);
+  border-bottom: 2px solid var(--border-color, #222);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.trending-row td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-light, #e8e4dc);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.trending-row:last-child td {
+  border-bottom: none;
+}
+
+.tr-rank {
+  color: var(--neutral-500, #888);
+  font-size: 0.72rem;
+  width: 2rem;
+}
+
+.tr-symbol {
+  font-weight: 700;
+  font-size: 0.9rem;
+  width: 7rem;
+}
+
+.tr-subname {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--neutral-500, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 10rem;
+}
+
+.tr-name {
+  color: var(--neutral-600, #555);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tr-price {
+  text-align: right;
+  width: 5rem;
+}
+
+.tr-change {
+  text-align: right;
+  width: 5rem;
+}
+
+.tr-vol {
+  text-align: right;
+  width: 5rem;
+  color: var(--neutral-600, #555);
+}
+
+.tr-note {
+  color: var(--neutral-600, #555);
+  font-size: 0.78rem;
+  white-space: normal;
+  max-width: 28rem;
+}
+
+.tr-rules {
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 24rem;
+}
+
+.trending-table .pill,
+.trending-table .score-badge {
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  font-size: 0.75rem;
 }
 
 /* ── Earnings weekly calendar ─────────────────────────────── */
