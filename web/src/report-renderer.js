@@ -1022,7 +1022,7 @@ export function renderReportApp(report) {
               ${normalized.newsSummary ? `<p class="hero-copy lead-copy">${escapeHtml(normalized.newsSummary)}</p>` : ''}
               ${renderFrontPageHighlights(normalized.highlights)}
               <p class="lead-note">
-                ${escapeHtml(normalized.universe.name)} currently spans ${escapeHtml(normalized.universe.totalSymbols)} symbols
+                This analysis currently spans ${escapeHtml(normalized.universe.totalSymbols)} symbols
                 across ${escapeHtml(normalized.universe.activeLists.length)} active watchlists.
               </p>
             </article>
