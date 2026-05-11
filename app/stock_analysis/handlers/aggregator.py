@@ -74,7 +74,15 @@ def _ticker_anchor(symbol: str, href: str, label: str = None) -> str:
     """Return a safe HTML anchor for a ticker symbol."""
     return f'<a href="{href}">{label or symbol}</a>'
 
-# Sum of all rule weights — used to normalise weighted_score to 0–100
+# Per-side weight sums — scoring is relative to the matched side's max, ensuring
+# a strong bearish setup ranks as high as an equivalent bullish one.
+_BULLISH_MAX_WEIGHT = sum(
+    cfg["weight"] for cfg in RULE_CONFIGS.values() if cfg.get("side") == "bullish"
+)
+_BEARISH_MAX_WEIGHT = sum(
+    cfg["weight"] for cfg in RULE_CONFIGS.values() if cfg.get("side") == "bearish"
+)
+# Legacy constant — kept so existing imports don't break; equals total of all weights.
 _MAX_WEIGHTED_SCORE = sum(cfg.get("weight", 1.0) for cfg in RULE_CONFIGS.values())
 
 
@@ -165,12 +173,23 @@ def handler(event: dict, context: object) -> dict:
             for wl_id in ticker_watchlists:
                 watchlist_signal_counts[wl_id] = watchlist_signal_counts.get(wl_id, 0) + 1
             best = max(matched_rules, key=lambda x: x["score"])
-            raw_weighted = sum(
-                RULE_CONFIGS.get(mr.get("rule_key", ""), {}).get("weight", 1.0)
+            bullish_weight = sum(
+                RULE_CONFIGS[mr["rule_key"]]["weight"]
                 for mr in matched_rules
+                if RULE_CONFIGS.get(mr.get("rule_key", ""), {}).get("side") == "bullish"
             )
-            weighted_score = round(raw_weighted / _MAX_WEIGHTED_SCORE * 100)
-            logger.debug("Ticker %s: match_count=%d weighted_score=%d", sym, len(matched_rules), weighted_score)
+            bearish_weight = sum(
+                RULE_CONFIGS[mr["rule_key"]]["weight"]
+                for mr in matched_rules
+                if RULE_CONFIGS.get(mr.get("rule_key", ""), {}).get("side") == "bearish"
+            )
+            bullish_score = round(bullish_weight / _BULLISH_MAX_WEIGHT * 100) if bullish_weight > 0 else 0
+            bearish_score = round(bearish_weight / _BEARISH_MAX_WEIGHT * 100) if bearish_weight > 0 else 0
+            weighted_score = max(bullish_score, bearish_score)
+            logger.debug(
+                "Ticker %s: match_count=%d bullish_score=%d bearish_score=%d weighted_score=%d",
+                sym, len(matched_rules), bullish_score, bearish_score, weighted_score,
+            )
             matched_results.append({
                 "symbol": sym,
                 "score": best["score"],

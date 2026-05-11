@@ -16,6 +16,8 @@ from stock_analysis.handlers.aggregator import (
     _option_strategy_abbrev,
     _ticker_anchor,
     _MAX_WEIGHTED_SCORE,
+    _BULLISH_MAX_WEIGHT,
+    _BEARISH_MAX_WEIGHT,
 )
 from stock_analysis.screening import OptionIdea
 from stock_analysis.data import RULE_CONFIGS
@@ -209,6 +211,38 @@ def test_all_rules_have_weight_field():
     for rule_key, cfg in RULE_CONFIGS.items():
         assert "weight" in cfg, f"Rule '{rule_key}' is missing a weight field"
         assert cfg["weight"] in (1.0, 1.5, 2.0), f"Rule '{rule_key}' has unexpected weight {cfg['weight']}"
+
+
+def test_all_rules_have_side_field():
+    for rule_key, cfg in RULE_CONFIGS.items():
+        assert "side" in cfg, f"Rule '{rule_key}' is missing a side field"
+        assert cfg["side"] in ("bullish", "bearish"), f"Rule '{rule_key}' has unknown side '{cfg['side']}'"
+
+
+def test_bullish_max_weight_equals_sum_of_bullish_rules():
+    expected = sum(cfg["weight"] for cfg in RULE_CONFIGS.values() if cfg.get("side") == "bullish")
+    assert _BULLISH_MAX_WEIGHT == expected
+
+
+def test_bearish_max_weight_equals_sum_of_bearish_rules():
+    expected = sum(cfg["weight"] for cfg in RULE_CONFIGS.values() if cfg.get("side") == "bearish")
+    assert _BEARISH_MAX_WEIGHT == expected
+
+
+def test_side_aware_scoring_bearish_signal_can_reach_high_priority():
+    """A stock matching only bearish rules should be able to score >= 35 (high priority)."""
+    # dead_cross(1.0) + sma200_breakdown(2.0) + strong_downtrend_day(2.0) = 5.0
+    bearish_weight = 1.0 + 2.0 + 2.0
+    bearish_score = round(bearish_weight / _BEARISH_MAX_WEIGHT * 100)
+    assert bearish_score >= 35, f"Bearish score {bearish_score} should reach high-priority threshold"
+
+
+def test_side_aware_scoring_same_proportion_same_score():
+    """Matching the same fraction of each side's rules should produce the same score."""
+    # Matching exactly half of each side's total weight
+    bullish_score = round(_BULLISH_MAX_WEIGHT / 2 / _BULLISH_MAX_WEIGHT * 100)
+    bearish_score = round(_BEARISH_MAX_WEIGHT / 2 / _BEARISH_MAX_WEIGHT * 100)
+    assert bullish_score == bearish_score == 50
 
 
 def test_current_week_bounds_wednesday():

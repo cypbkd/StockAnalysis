@@ -66,6 +66,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "ma_stack": {
         "name": "MA Stack",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.5,  # Volume/Confirmation: trend structure quality
         "rule_summary": "All MAs aligned bullishly and RSI not overheated — close > EMA-20 > SMA-50, RSI < 75",
         "rule_def": {
@@ -83,6 +84,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "golden_cross": {
         "name": "Golden Cross",
         "priority": "high",
+        "side": "bullish",
         "weight": 2.0,  # Primary Momentum: trend continuation breakout
         "rule_summary": "SMA-20 just crossed above SMA-50 today (was below yesterday) with price follow-through",
         "rule_def": {
@@ -101,6 +103,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "dead_cross": {
         "name": "Dead Cross",
         "priority": "high",
+        "side": "bearish",
         "weight": 1.0,  # Structural/Risk: bearish regime signal — lower weight avoids over-ranking short setups
         "rule_summary": "SMA-20 just crossed below SMA-50 today (was above yesterday) with price breaking down",
         "rule_def": {
@@ -118,6 +121,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "ath_breakout": {
         "name": "ATH Breakout",
         "priority": "high",
+        "side": "bullish",
         "weight": 2.0,  # Primary Momentum: strongest trend continuation signal
         "rule_summary": "Price at or above 52-week high with volume at least 1.5x the 20-day average",
         "rule_def": {
@@ -134,6 +138,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "near_ath": {
         "name": "Near-ATH Consolidation",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.0,  # Tactical/Minor: passive observation, needs confirmation
         "rule_summary": "Within 3% of 52-week high, quiet volume, RSI not overheated — coiling before breakout",
         "rule_def": {
@@ -151,6 +156,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "oversold_dip": {
         "name": "Oversold Dip",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.5,  # Contrarian/Reversal: mean reversion with trend support
         "rule_summary": "Long-term trend intact (above 50DMA) but RSI dipped into oversold territory — dip-buy setup",
         "rule_def": {
@@ -167,6 +173,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "pre_earnings_momentum": {
         "name": "Pre-Earnings Momentum",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.5,  # Tactical: time-bound event signal, actionable within 7-day window
         "rule_summary": "Earnings within 7 days, price above 20DMA, RSI above 55 — pre-earnings run setup",
         "rule_def": {
@@ -184,6 +191,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "high_vol_day": {
         "name": "High-Volume Day",
         "priority": "high",
+        "side": "bullish",
         "weight": 2.0,  # Primary Momentum: institutional accumulation confirmation
         "rule_summary": "Volume at least 2x average with RSI above 55 and price above 20DMA — institutional buying",
         "rule_def": {
@@ -201,6 +209,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "strong_trending_day": {
         "name": "Strong Trending Day",
         "priority": "high",
+        "side": "bullish",
         "weight": 2.0,  # Primary Momentum: confirmed price action breakout
         "rule_summary": "Single-day gain of 3%+ with volume confirmation inside an uptrend — momentum breakout",
         "rule_def": {
@@ -218,6 +227,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "near_52w_support": {
         "name": "Near 52-Week Support",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.5,  # Structural: annual floor is a meaningful level — buyers historically step in
         "rule_summary": "Price within 5% of 52-week low with RSI cooling — potential support bounce",
         "rule_def": {
@@ -234,6 +244,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "pivot_s1_bounce": {
         "name": "Pivot S1 Bounce",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.0,  # Tactical/Minor: short-term support hold, needs other confirmation
         "rule_summary": "Price closed above open within 3% above S1 support, RSI 30–45 — buyers stepped in at support with stabilising momentum",
         "rule_def": {
@@ -253,6 +264,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "pivot_r1_breakout": {
         "name": "Pivot R1 Breakout",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.5,  # Confirmation: level breakout with volume — resistance-to-support flip
         "rule_summary": "Price broke above R1 pivot resistance on above-average volume — resistance turned support",
         "rule_def": {
@@ -269,6 +281,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "td_buy": {
         "name": "TD Buy Setup",
         "priority": "high",
+        "side": "bullish",
         "weight": 1.5,  # Contrarian/Reversal: count-based exhaustion, context-dependent
         "rule_summary": "9 consecutive closes below close[i-4] — 神奇九转 exhaustion signal, potential reversal up",
         "rule_def": {
@@ -284,6 +297,7 @@ RULE_CONFIGS: Dict[str, Dict] = {
     "td_sell": {
         "name": "TD Sell Setup",
         "priority": "high",
+        "side": "bearish",
         "weight": 1.5,  # Contrarian/Reversal: count-based exhaustion, context-dependent
         "rule_summary": "9 consecutive closes above close[i-4] — 神奇九转 exhaustion signal, potential reversal down",
         "rule_def": {
@@ -293,6 +307,96 @@ RULE_CONFIGS: Dict[str, Dict] = {
             "source_text": "Flag when 9 consecutive bars close above close[i-4] — TD Sequential sell setup (神奇九转卖出).",
             "conditions": [
                 {"field": "td_sell_setup", "op": ">=", "value": 9},
+            ],
+        },
+    },
+    "bearish_ma_stack": {
+        "name": "Bearish MA Stack",
+        "priority": "high",
+        "side": "bearish",
+        "weight": 1.5,  # Structural: full bearish MA alignment — mirrors bullish ma_stack
+        "rule_summary": "All MAs aligned bearishly and RSI not oversold — close < EMA-20 < SMA-50, RSI > 25",
+        "rule_def": {
+            "logic": "and",
+            "name": "Bearish MA Stack",
+            "description": "Price below EMA-20, EMA-20 below SMA-50, RSI above 25 — full bearish MA alignment confirming downtrend without being in panic territory.",
+            "source_text": "Flag names where close < EMA-20 < SMA-50 and RSI > 25 — all MAs stacked bearishly, not at capitulation.",
+            "conditions": [
+                {"field": "close", "op": "<", "value_from": "ema_20"},
+                {"field": "ema_20", "op": "<", "value_from": "sma_50"},
+                {"field": "rsi_14", "op": ">", "value": 25},
+            ],
+        },
+    },
+    "sma200_breakdown": {
+        "name": "SMA-200 Breakdown",
+        "priority": "high",
+        "side": "bearish",
+        "weight": 2.0,  # Primary Breakdown: long-term structural support lost on volume
+        "rule_summary": "Fresh close below SMA-200 today (was above yesterday) on volume at least 1.5x — key long-term support broken",
+        "rule_def": {
+            "logic": "and",
+            "name": "SMA-200 Breakdown",
+            "description": "Price closed below the 200-day SMA today after closing above it yesterday — fresh breakdown of the most-watched long-term support on confirming volume.",
+            "source_text": "Find names that closed below SMA-200 today (prev_close >= sma_200) on volume at least 1.5x average — structural long-term support just broke.",
+            "conditions": [
+                {"field": "close", "op": "<", "value_from": "sma_200"},
+                {"field": "prev_close", "op": ">=", "value_from": "sma_200"},
+                {"field": "volume_ratio", "op": ">=", "value": 1.5},
+            ],
+        },
+    },
+    "rsi_overbought_reversal": {
+        "name": "RSI Overbought Reversal",
+        "priority": "high",
+        "side": "bearish",
+        "weight": 1.5,  # Contrarian/Reversal: momentum exhaustion at overextended levels
+        "rule_summary": "RSI was overbought (≥70), price dropped ≥1.5% and crossed below SMA-20 — momentum exhaustion rollover",
+        "rule_def": {
+            "logic": "and",
+            "name": "RSI Overbought Reversal",
+            "description": "RSI at or above 70 (overbought) while price drops at least 1.5% and closes below SMA-20 — buying pressure spent, early rollover signal.",
+            "source_text": "Flag names where RSI >= 70, today's drop >= 1.5%, and close < SMA-20 — overbought exhaustion with price breaking down.",
+            "conditions": [
+                {"field": "rsi_14", "op": ">=", "value": 70},
+                {"field": "change_percent", "op": "<=", "value": -1.5},
+                {"field": "close", "op": "<", "value_from": "sma_20"},
+            ],
+        },
+    },
+    "high_vol_selloff": {
+        "name": "High-Volume Selloff",
+        "priority": "high",
+        "side": "bearish",
+        "weight": 2.0,  # Primary Breakdown: institutional distribution on heavy volume
+        "rule_summary": "Volume at least 2x average with RSI below 45 and price below SMA-20 — institutional distribution",
+        "rule_def": {
+            "logic": "and",
+            "name": "High-Volume Selloff",
+            "description": "Heavy volume (≥2× avg) selloff day with weakening momentum below the 20DMA — institutional distribution signal.",
+            "source_text": "Flag names with volume at least 2x average, RSI below 45, and price below the 20DMA — distribution day.",
+            "conditions": [
+                {"field": "volume_ratio", "op": ">=", "value": 2.0},
+                {"field": "rsi_14", "op": "<=", "value": 45},
+                {"field": "close", "op": "<", "value_from": "sma_20"},
+            ],
+        },
+    },
+    "strong_downtrend_day": {
+        "name": "Strong Downtrend Day",
+        "priority": "high",
+        "side": "bearish",
+        "weight": 2.0,  # Primary Breakdown: confirmed price action breakdown
+        "rule_summary": "Single-day drop of 3%+ with volume confirmation inside a downtrend — momentum breakdown",
+        "rule_def": {
+            "logic": "and",
+            "name": "Strong Downtrend Day",
+            "description": "Strong single-day drop (≥3%) on volume at least 1.5x average while below the 20DMA — momentum breakdown.",
+            "source_text": "Flag names with a 3%+ drop on volume at least 1.5x average while below the 20DMA.",
+            "conditions": [
+                {"field": "change_percent", "op": "<=", "value": -3.0},
+                {"field": "close", "op": "<", "value_from": "sma_20"},
+                {"field": "volume_ratio", "op": ">=", "value": 1.5},
             ],
         },
     },
