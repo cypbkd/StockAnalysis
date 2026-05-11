@@ -77,6 +77,39 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // Mock compliance detail endpoint — returns sample ticker detail JSON
+    if (safePath.startsWith('/evaluations/tickers/') && safePath.endsWith('.json')) {
+      const ticker = safePath.replace('/evaluations/tickers/', '').replace('.json', '');
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({
+        ticker,
+        totalSignals: 7,
+        wins: 6,
+        winRate: 0.857,
+        avgReturn3d: 4.21,
+        lastSignalDate: '2026-05-05',
+        dominantRule: 'ma_stack',
+        dominantRuleDisplay: 'MA Stack',
+        earningsSignals: 3,
+        updatedAt: '2026-05-10',
+        ruleBreakdown: [
+          { ruleKey: 'ma_stack', display: 'MA Stack', count: 7, wins: 6, winRate: 0.857, avgReturn3d: 4.21 },
+          { ruleKey: 'pre_earnings_momentum', display: 'Pre-Earnings', count: 3, wins: 3, winRate: 1.0, avgReturn3d: 5.67 },
+          { ruleKey: 'pivot_r1_breakout', display: 'R1 Breakout', count: 2, wins: 2, winRate: 1.0, avgReturn3d: 6.10 },
+        ],
+        signals: [
+          { signalDate: '2026-04-24', exitDate: '2026-04-29', direction: 'bullish', ruleKeys: ['ma_stack'], ruleDisplays: ['MA Stack'], entryPrice: 303.16, exitPrice: 328.15, return3d: 8.24, win: true, hasEarnings: false, marketBreadth: 0.72 },
+          { signalDate: '2026-04-27', exitDate: '2026-04-30', direction: 'bullish', ruleKeys: ['ma_stack', 'pivot_r1_breakout'], ruleDisplays: ['MA Stack', 'R1 Breakout'], entryPrice: 297.72, exitPrice: 323.90, return3d: 8.79, win: true, hasEarnings: false, marketBreadth: 0.68 },
+          { signalDate: '2026-04-28', exitDate: '2026-05-01', direction: 'bullish', ruleKeys: ['ma_stack', 'pivot_r1_breakout'], ruleDisplays: ['MA Stack', 'R1 Breakout'], entryPrice: 303.79, exitPrice: 323.20, return3d: 6.39, win: true, hasEarnings: false, marketBreadth: 0.71 },
+          { signalDate: '2026-04-29', exitDate: '2026-05-04', direction: 'bullish', ruleKeys: ['ma_stack', 'pre_earnings_momentum'], ruleDisplays: ['MA Stack', 'Pre-Earnings'], entryPrice: 328.15, exitPrice: 329.93, return3d: 0.54, win: true, hasEarnings: true, marketBreadth: 0.45 },
+          { signalDate: '2026-04-30', exitDate: '2026-05-05', direction: 'bullish', ruleKeys: ['ma_stack'], ruleDisplays: ['MA Stack'], entryPrice: 328.15, exitPrice: 325.00, return3d: -0.96, win: false, hasEarnings: false, marketBreadth: 0.38 },
+          { signalDate: '2026-05-01', exitDate: '2026-05-06', direction: 'bullish', ruleKeys: ['ma_stack', 'pre_earnings_momentum'], ruleDisplays: ['MA Stack', 'Pre-Earnings'], entryPrice: 323.90, exitPrice: 341.02, return3d: 5.29, win: true, hasEarnings: true, marketBreadth: 0.58 },
+          { signalDate: '2026-05-05', exitDate: '2026-05-08', direction: 'bullish', ruleKeys: ['ma_stack', 'pre_earnings_momentum'], ruleDisplays: ['MA Stack', 'Pre-Earnings'], entryPrice: 329.93, exitPrice: 354.03, return3d: 7.30, win: true, hasEarnings: true, marketBreadth: 0.65 },
+        ],
+      }));
+      return;
+    }
+
     // Mock on-demand analysis endpoint — returns sample data after a short delay
     if (safePath === '/api/analysis') {
       await new Promise(r => setTimeout(r, 600));

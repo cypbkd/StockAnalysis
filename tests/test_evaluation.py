@@ -10,7 +10,10 @@ from stock_analysis.evaluation import (
     signal_direction,
     nth_trading_day_after,
     nth_trading_day_before,
+    _dedup_records,
+    _compute_market_breadth,
     build_compliance_summary,
+    build_ticker_detail,
     evaluate_report_date,
     run_nightly_evaluation,
     backfill_evaluations,
@@ -92,7 +95,60 @@ def test_roundtrip_after_before():
 
 
 # ---------------------------------------------------------------------------
-# build_compliance_summary
+# _dedup_records
+# ---------------------------------------------------------------------------
+
+def test_dedup_records_removes_same_exit_date():
+    records = [
+        _make_record("FFIV", "bullish", True, 8.24, "2026-04-24"),
+        _make_record("FFIV", "bullish", True, 8.24, "2026-04-25"),  # same exitDate → dup
+        _make_record("FFIV", "bullish", True, 8.24, "2026-04-26"),  # same exitDate → dup
+    ]
+    # All three have exitDate derived from entryPrice+ret3d — force same exitDate manually
+    for r in records:
+        r["exitDate"] = "2026-04-29"
+    deduped = _dedup_records(records)
+    assert len(deduped) == 1
+    # Keeps the latest signalDate
+    assert deduped[0]["signalDate"] == "2026-04-26"
+
+
+def test_dedup_records_keeps_different_exit_dates():
+    r1 = _make_record("AAPL", "bullish", True, 2.0, "2026-04-24")
+    r1["exitDate"] = "2026-04-29"
+    r2 = _make_record("AAPL", "bullish", True, 1.5, "2026-04-27")
+    r2["exitDate"] = "2026-04-30"
+    deduped = _dedup_records([r1, r2])
+    assert len(deduped) == 2
+
+
+def test_dedup_records_different_tickers_same_exit_date_kept():
+    r1 = _make_record("AAPL", "bullish", True, 2.0, "2026-04-24")
+    r2 = _make_record("MSFT", "bullish", True, 1.5, "2026-04-24")
+    for r in [r1, r2]:
+        r["exitDate"] = "2026-04-29"
+    deduped = _dedup_records([r1, r2])
+    assert len(deduped) == 2  # different tickers → both kept
+
+
+# ---------------------------------------------------------------------------
+# _compute_market_breadth
+# ---------------------------------------------------------------------------
+
+def test_compute_market_breadth_basic():
+    records = [
+        {**_make_record("A", "bullish", True, 1.0), "exitDate": "2026-04-29"},
+        {**_make_record("B", "bullish", True, 2.0), "exitDate": "2026-04-29"},
+        {**_make_record("C", "bullish", False, -1.0), "exitDate": "2026-04-29"},
+        {**_make_record("D", "bullish", True, 3.0), "exitDate": "2026-04-30"},
+    ]
+    breadth = _compute_market_breadth(records)
+    assert abs(breadth["2026-04-29"] - 2/3) < 0.01
+    assert breadth["2026-04-30"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# build_compliance_summary (with dedup)
 # ---------------------------------------------------------------------------
 
 def _make_record(ticker, direction, win, ret3d, signal_date="2026-04-01"):
@@ -109,6 +165,28 @@ def _make_record(ticker, direction, win, ret3d, signal_date="2026-04-01"):
     }
 
 
+def test_build_compliance_summary_deduplicates_same_exit_date():
+    # Three signal dates all exiting on the same day → should count as 1
+    records = [
+        _make_record("FFIV", "bullish", True, 8.24, "2026-04-24"),
+        _make_record("FFIV", "bullish", True, 8.24, "2026-04-25"),
+        _make_record("FFIV", "bullish", True, 8.24, "2026-04-26"),
+    ]
+    for r in records:
+        r["exitDate"] = "2026-04-29"
+    # Add 2 more distinct signals so min_signals=3 is met
+    r2 = _make_record("FFIV", "bullish", True, 4.0, "2026-04-28")
+    r2["exitDate"] = "2026-05-01"
+    r3 = _make_record("FFIV", "bullish", True, 3.0, "2026-05-01")
+    r3["exitDate"] = "2026-05-06"
+    all_records = records + [r2, r3]
+
+    summary = build_compliance_summary(all_records, min_signals=3)
+    tickers = {t["ticker"]: t for t in summary["tickers"]}
+    # After dedup: Apr 29 (×1) + May 1 + May 6 = 3 unique observations
+    assert tickers["FFIV"]["totalSignals"] == 3
+
+
 def test_build_compliance_summary_basic():
     records = [
         _make_record("AAPL", "bullish", True, 2.0),
@@ -118,6 +196,9 @@ def test_build_compliance_summary_basic():
         _make_record("NVDA", "bullish", True, 2.5),
         _make_record("NVDA", "bullish", True, 4.0),
     ]
+    # Give each record a unique exitDate so dedup doesn't collapse them
+    for i, r in enumerate(records):
+        r["exitDate"] = f"2026-04-{20 + i:02d}"
     summary = build_compliance_summary(records, min_signals=3)
     assert summary["lookbackDays"] == 90
     assert summary["minSignals"] == 3
@@ -142,22 +223,63 @@ def test_build_compliance_summary_min_signals_filter():
         _make_record("AAPL", "bullish", True, 1.5),
         # Only 2 records — below min_signals=3
     ]
+    for i, r in enumerate(records):
+        r["exitDate"] = f"2026-04-{20 + i:02d}"
     summary = build_compliance_summary(records, min_signals=3)
     assert summary["tickers"] == []
 
 
 def test_build_compliance_summary_sorted_by_win_rate():
-    records = (
-        [_make_record("LOW", "bullish", False, -1.0)] * 3 +   # 0% win rate
-        [_make_record("MID", "bullish", True, 1.0)] * 2 +
-        [_make_record("MID", "bullish", False, -1.0)] * 1 +   # 67% win rate (3 total)
-        [_make_record("TOP", "bullish", True, 2.0)] * 4 +     # 80% win rate
-        [_make_record("TOP", "bullish", False, -1.0)] * 1
+    # Use list comprehensions (not * N) so each dict is a fresh object
+    base = (
+        [_make_record("LOW", "bullish", False, -1.0) for _ in range(3)] +
+        [_make_record("MID", "bullish", True,  1.0) for _ in range(2)] +
+        [_make_record("MID", "bullish", False, -1.0) for _ in range(1)] +
+        [_make_record("TOP", "bullish", True,  2.0) for _ in range(4)] +
+        [_make_record("TOP", "bullish", False, -1.0) for _ in range(1)]
     )
-    summary = build_compliance_summary(records, min_signals=3)
+    for i, r in enumerate(base):
+        r["exitDate"] = f"2026-04-{10 + i:02d}"
+    summary = build_compliance_summary(base, min_signals=3)
     names = [t["ticker"] for t in summary["tickers"]]
     assert names.index("TOP") < names.index("MID")
     assert names.index("MID") < names.index("LOW")
+
+
+# ---------------------------------------------------------------------------
+# build_ticker_detail
+# ---------------------------------------------------------------------------
+
+def test_build_ticker_detail_dominant_rule_and_earnings():
+    recs = [
+        {**_make_record("FFIV", "bullish", True, 8.24, "2026-04-24"),
+         "exitDate": "2026-04-29", "ruleKeys": ["ma_stack"]},
+        {**_make_record("FFIV", "bullish", True, 5.29, "2026-05-01"),
+         "exitDate": "2026-05-06", "ruleKeys": ["ma_stack", "pre_earnings_momentum"]},
+        {**_make_record("FFIV", "bullish", True, 7.30, "2026-05-05"),
+         "exitDate": "2026-05-08", "ruleKeys": ["ma_stack", "pre_earnings_momentum"]},
+    ]
+    breadth = {"2026-04-29": 0.72, "2026-05-06": 0.58, "2026-05-08": 0.65}
+    detail = build_ticker_detail("FFIV", recs, breadth)
+
+    assert detail["ticker"] == "FFIV"
+    assert detail["totalSignals"] == 3
+    assert detail["wins"] == 3
+    assert detail["dominantRule"] == "ma_stack"
+    assert detail["dominantRuleDisplay"] == "MA Stack"
+    assert detail["earningsSignals"] == 2
+
+    # ma_stack should be first in rule breakdown (appears 3 times)
+    assert detail["ruleBreakdown"][0]["ruleKey"] == "ma_stack"
+    assert detail["ruleBreakdown"][0]["count"] == 3
+
+    # Signals have marketBreadth populated
+    assert detail["signals"][0]["marketBreadth"] == 0.72
+    assert detail["signals"][0]["hasEarnings"] is False
+    assert detail["signals"][1]["hasEarnings"] is True
+
+    # ruleDisplays populated
+    assert "MA Stack" in detail["signals"][0]["ruleDisplays"]
 
 
 # ---------------------------------------------------------------------------

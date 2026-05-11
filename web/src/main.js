@@ -1,4 +1,4 @@
-import { renderReportApp, renderSymbolDetail, renderDetailAnalysis } from './report-renderer.js';
+import { renderReportApp, renderSymbolDetail, renderDetailAnalysis, renderComplianceDetail } from './report-renderer.js';
 
 function injectTradingViewChart(symbol) {
   const container = document.getElementById('tradingview-chart-container');
@@ -133,5 +133,40 @@ async function bootstrap() {
 window.addEventListener('hashchange', () => {
   applyView(cachedReport, cachedConfig);
 });
+
+// Compliance detail toggle — called by onclick in the compliance table rows
+const _complianceDetailCache = {};
+window.toggleComplianceDetail = async function toggleComplianceDetail(ticker) {
+  const rowId = `cd-row-${ticker}`;
+  const detailRow = document.getElementById(rowId);
+  if (!detailRow) return;
+
+  const btn = detailRow.previousElementSibling?.querySelector('.cd-expand-btn');
+  const isOpen = !detailRow.hidden;
+
+  if (isOpen) {
+    detailRow.hidden = true;
+    if (btn) { btn.textContent = '▶'; btn.setAttribute('aria-expanded', 'false'); }
+    return;
+  }
+
+  detailRow.hidden = false;
+  if (btn) { btn.textContent = '▼'; btn.setAttribute('aria-expanded', 'true'); }
+
+  if (_complianceDetailCache[ticker]) {
+    detailRow.querySelector('.cd-detail-inner').innerHTML = renderComplianceDetail(_complianceDetailCache[ticker]);
+    return;
+  }
+
+  try {
+    const res = await fetch(`./evaluations/tickers/${encodeURIComponent(ticker)}.json`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const detail = await res.json();
+    _complianceDetailCache[ticker] = detail;
+    detailRow.querySelector('.cd-detail-inner').innerHTML = renderComplianceDetail(detail);
+  } catch {
+    detailRow.querySelector('.cd-detail-inner').innerHTML = `<p class="empty-state">Could not load detail for ${ticker}.</p>`;
+  }
+};
 
 bootstrap();
