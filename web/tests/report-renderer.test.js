@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createEmptyReport } from '../src/report-model.js';
-import { renderReportApp, renderSymbolDetail, renderDetailAnalysis } from '../src/report-renderer.js';
+import { renderReportApp, renderSymbolDetail, renderDetailAnalysis, renderComplianceDetail } from '../src/report-renderer.js';
 
 const sampleReport = createEmptyReport({
   reportDate: '2026-04-23',
@@ -574,4 +574,178 @@ test('renderEarningsCalendar marks only the report-date day tickers as ec-priori
   assert.match(html, /ec-day-col[^"]*ec-day-today[^>]*>[\s\S]{0,100}?ec-day-header[^>]*>Wednesday/);
   assert.doesNotMatch(html, /ec-day-col[^"]*ec-day-today[^>]*>[\s\S]{0,100}?ec-day-header[^>]*>Monday/);
   assert.doesNotMatch(html, /ec-day-col[^"]*ec-day-today[^>]*>[\s\S]{0,100}?ec-day-header[^>]*>Thursday/);
+});
+
+// ── Ticker Compliance Scorecard ─────────────────────────────────────────────
+
+const sampleCompliance = {
+  updatedAt: '2026-05-01',
+  lookbackDays: 90,
+  minSignals: 3,
+  tickers: [
+    { ticker: 'FFIV', totalSignals: 7, wins: 6, winRate: 0.857, avgReturn3d: 4.21, lastSignalDate: '2026-05-05' },
+    { ticker: 'AMD',  totalSignals: 5, wins: 4, winRate: 0.8,   avgReturn3d: 3.10, lastSignalDate: '2026-05-04' },
+    { ticker: 'MSFT', totalSignals: 4, wins: 2, winRate: 0.5,   avgReturn3d: 0.92, lastSignalDate: '2026-05-02' },
+  ],
+};
+
+test('renderReportApp omits Scorecard section when tickerCompliance is null', () => {
+  const html = renderReportApp(sampleReport);
+  assert.doesNotMatch(html, /ticker-compliance/);
+  assert.doesNotMatch(html, /Ticker Compliance/);
+  assert.doesNotMatch(html, /cd-expand-btn/);
+});
+
+test('renderReportApp renders Scorecard section when tickerCompliance present', () => {
+  const report = createEmptyReport({ ...sampleReport, tickerCompliance: sampleCompliance });
+  const html = renderReportApp(report);
+  assert.match(html, /id="ticker-compliance"/);
+  assert.match(html, /Ticker Compliance/);
+  assert.match(html, /Rolling 90-day window/);
+  assert.match(html, /Updated 2026-05-01/);
+});
+
+test('renderReportApp Scorecard nav link appears only when tickerCompliance present', () => {
+  const withCompliance = createEmptyReport({ ...sampleReport, tickerCompliance: sampleCompliance });
+  assert.match(renderReportApp(withCompliance), /href="#ticker-compliance"[^>]*>Scorecard/);
+  assert.doesNotMatch(renderReportApp(sampleReport), /Scorecard/);
+});
+
+test('renderReportApp Scorecard renders one expand button and one hidden detail row per ticker', () => {
+  const report = createEmptyReport({ ...sampleReport, tickerCompliance: sampleCompliance });
+  const html = renderReportApp(report);
+
+  // Three tickers → three expand buttons
+  const btnMatches = html.match(/class="cd-expand-btn"/g) ?? [];
+  assert.equal(btnMatches.length, 3);
+
+  // Each button calls toggleComplianceDetail with the ticker symbol
+  assert.match(html, /toggleComplianceDetail\('FFIV'\)/);
+  assert.match(html, /toggleComplianceDetail\('AMD'\)/);
+  assert.match(html, /toggleComplianceDetail\('MSFT'\)/);
+
+  // Each ticker has a hidden detail row with the matching id
+  assert.match(html, /id="cd-row-FFIV"[^>]*hidden/);
+  assert.match(html, /id="cd-row-AMD"[^>]*hidden/);
+  assert.match(html, /id="cd-row-MSFT"[^>]*hidden/);
+
+  // Detail rows contain the loading placeholder initially
+  const loadingMatches = html.match(/cd-loading/g) ?? [];
+  assert.equal(loadingMatches.length, 3);
+});
+
+test('renderReportApp Scorecard shows high/mid/low badge classes by win rate', () => {
+  const report = createEmptyReport({ ...sampleReport, tickerCompliance: sampleCompliance });
+  const html = renderReportApp(report);
+  // FFIV 85.7% → high, AMD 80% → high, MSFT 50% → mid
+  assert.match(html, /compliance-badge-high[^>]*>86%/);
+  assert.match(html, /compliance-badge-high[^>]*>80%/);
+  assert.match(html, /compliance-badge-mid[^>]*>50%/);
+});
+
+test('renderReportApp Scorecard links ticker symbol to detail hash page', () => {
+  const report = createEmptyReport({ ...sampleReport, tickerCompliance: sampleCompliance });
+  const html = renderReportApp(report);
+  assert.match(html, /href="#symbol\/FFIV"[^>]*>FFIV/);
+});
+
+// ── renderComplianceDetail ──────────────────────────────────────────────────
+
+const sampleDetail = {
+  ticker: 'FFIV',
+  totalSignals: 7,
+  wins: 6,
+  winRate: 0.857,
+  avgReturn3d: 4.21,
+  lastSignalDate: '2026-05-05',
+  dominantRule: 'ma_stack',
+  dominantRuleDisplay: 'MA Stack',
+  earningsSignals: 2,
+  updatedAt: '2026-05-10',
+  ruleBreakdown: [
+    { ruleKey: 'ma_stack',             display: 'MA Stack',   count: 7, wins: 6, winRate: 0.857, avgReturn3d: 4.21 },
+    { ruleKey: 'pre_earnings_momentum', display: 'Pre-Earnings', count: 2, wins: 2, winRate: 1.0,   avgReturn3d: 5.67 },
+  ],
+  signals: [
+    { signalDate: '2026-04-24', exitDate: '2026-04-29', direction: 'bullish', ruleKeys: ['ma_stack'], ruleDisplays: ['MA Stack'], entryPrice: 303.16, exitPrice: 328.15, return3d: 8.24, win: true,  hasEarnings: false, marketBreadth: 0.72 },
+    { signalDate: '2026-04-29', exitDate: '2026-05-04', direction: 'bullish', ruleKeys: ['ma_stack', 'pre_earnings_momentum'], ruleDisplays: ['MA Stack', 'Pre-Earnings'], entryPrice: 328.15, exitPrice: 329.93, return3d: 0.54, win: true,  hasEarnings: true,  marketBreadth: 0.45 },
+    { signalDate: '2026-04-30', exitDate: '2026-05-05', direction: 'bullish', ruleKeys: ['ma_stack'], ruleDisplays: ['MA Stack'], entryPrice: 328.15, exitPrice: 325.00, return3d: -0.96, win: false, hasEarnings: false, marketBreadth: 0.38 },
+  ],
+};
+
+test('renderComplianceDetail returns empty-state for null input', () => {
+  assert.match(renderComplianceDetail(null), /empty-state/);
+  assert.match(renderComplianceDetail({}), /empty-state/);
+  assert.match(renderComplianceDetail({ signals: 'not-array' }), /empty-state/);
+});
+
+test('renderComplianceDetail renders summary stats bar', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  assert.match(html, /86%/);                   // win rate badge
+  assert.match(html, /6\/7 signals/);          // wins/total
+  assert.match(html, /avg \+4\.2% \/ signal/); // avg return
+});
+
+test('renderComplianceDetail shows earnings-catalyst pill when earningsSignals > 0', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  assert.match(html, /2 earnings-catalyst signals/);
+});
+
+test('renderComplianceDetail omits earnings pill when earningsSignals is 0', () => {
+  const detail = { ...sampleDetail, earningsSignals: 0 };
+  assert.doesNotMatch(renderComplianceDetail(detail), /earnings-catalyst/);
+});
+
+test('renderComplianceDetail shows dominant rule note', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  assert.match(html, /Dominant rule:.*MA Stack/s);
+});
+
+test('renderComplianceDetail rule breakdown marks dominant row with star badge', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  assert.match(html, /cd-dominant-row/);
+  assert.match(html, /★ dominant/);
+  // MA Stack is dominant; Pre-Earnings is not
+  assert.match(html, /cd-dominant-row[\s\S]{0,200}MA Stack/);
+});
+
+test('renderComplianceDetail renders one row per signal with dates, prices, return, outcome', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  assert.match(html, /2026-04-24/);   // signal date
+  assert.match(html, /2026-04-29/);   // exit date
+  assert.match(html, /303\.16/);      // entry price
+  assert.match(html, /328\.15/);      // exit price
+  assert.match(html, /\+8\.2%/);      // positive return
+  assert.match(html, /-0\.96%|-1\.0%|-1%/);  // negative return (formatPercent rounding)
+});
+
+test('renderComplianceDetail marks winning and losing signals with correct classes', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  const wins = (html.match(/class="cd-outcome cd-win"/g) ?? []).length;
+  const losses = (html.match(/class="cd-outcome cd-loss"/g) ?? []).length;
+  assert.equal(wins, 2);
+  assert.equal(losses, 1);
+});
+
+test('renderComplianceDetail shows earnings flag only on signals with hasEarnings=true', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  // One signal has hasEarnings:true → one cd-earnings-flag
+  const flags = (html.match(/cd-earnings-flag/g) ?? []).length;
+  assert.equal(flags, 1);
+});
+
+test('renderComplianceDetail renders market breadth percentage for each signal', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  assert.match(html, /72% mkt/);   // signal 1: 0.72
+  assert.match(html, /45% mkt/);   // signal 2: 0.45
+  assert.match(html, /38% mkt/);   // signal 3: 0.38
+});
+
+test('renderComplianceDetail renders rule tag pills for each signal', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  // First signal: MA Stack only
+  // Second signal: MA Stack + Pre-Earnings (two pills)
+  const pills = (html.match(/class="pill rule-tag"/g) ?? []).length;
+  // 1 + 2 + 1 = 4 rule pills across 3 signals
+  assert.equal(pills, 4);
 });

@@ -6,6 +6,9 @@ S3 layout
 ---------
 evaluations/YYYY-MM-DD.json          one record per non-mixed signal on that date
 evaluations/compliance-summary.json  rolling 90-day aggregate, rewritten each night
+evaluations/tickers/{TICKER}.json    per-ticker detail (signal timeline, rule breakdown,
+                                     market breadth), rewritten each night for all
+                                     qualifying tickers
 
 Each daily file is a JSON array of records::
 
@@ -20,6 +23,11 @@ Each daily file is a JSON array of records::
       "return3d":    2.67,
       "win":         true
     }
+
+Deduplication: records are de-duped by (ticker, exitDate) before any aggregation.
+Two signals sharing the same exit date measure the same price move, so they count
+as one observation regardless of how many report runs produced them (e.g. weekend
+test runs that replayed Friday's data).
 """
 import json
 import logging
@@ -36,6 +44,23 @@ BULLISH_RULES = frozenset({
     "pivot_r1_breakout", "td_buy",
 })
 BEARISH_RULES = frozenset({"dead_cross", "td_sell"})
+
+RULE_DISPLAY_NAMES: Dict[str, str] = {
+    "ma_stack":              "MA Stack",
+    "golden_cross":          "Golden Cross",
+    "dead_cross":            "Dead Cross",
+    "ath_breakout":          "ATH Breakout",
+    "near_ath":              "Near ATH",
+    "oversold_dip":          "Oversold Dip",
+    "pre_earnings_momentum": "Pre-Earnings",
+    "high_vol_day":          "High Volume",
+    "strong_trending_day":   "Strong Trend",
+    "near_52w_support":      "52W Support",
+    "pivot_s1_bounce":       "S1 Bounce",
+    "pivot_r1_breakout":     "R1 Breakout",
+    "td_buy":                "TD Buy (九转)",
+    "td_sell":               "TD Sell (九转)",
+}
 
 # Lazily populated reverse map: rule display name → rule key, for old reports
 _NAME_TO_KEY: Dict[str, str] = {}
@@ -98,10 +123,7 @@ def _resolve_rule_keys(signal: Dict[str, Any]) -> List[str]:
 
 
 def _fetch_prices_batch(tickers: List[str], target_date: str) -> Dict[str, float]:
-    """Fetch closing prices for a list of tickers on target_date via yfinance.
-
-    Returns a dict of {ticker: close_price}.  Missing tickers are omitted.
-    """
+    """Fetch closing prices for a list of tickers on target_date via yfinance."""
     import yfinance as yf
 
     if not tickers:
@@ -125,12 +147,10 @@ def _fetch_prices_batch(tickers: List[str], target_date: str) -> Dict[str, float
         close = df["Close"]
 
         if len(tickers) == 1:
-            # Single ticker: yfinance returns a flat Series
             if not close.empty:
                 return {tickers[0]: float(close.iloc[-1])}
             return {}
 
-        # Multiple tickers: columns are ticker symbols
         result: Dict[str, float] = {}
         for ticker in tickers:
             if ticker in close.columns:
@@ -142,6 +162,41 @@ def _fetch_prices_batch(tickers: List[str], target_date: str) -> Dict[str, float
     except Exception as exc:
         logger.error("Price batch fetch failed for %s on %s: %s", tickers, target_date, exc)
         return {}
+
+
+def _dedup_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Deduplicate evaluation records by (ticker, exitDate).
+
+    Two records sharing the same exit date measure the identical 3-day price move —
+    they count as one observation.  This collapses signals from duplicate/weekend
+    report runs that replayed the same market data.
+
+    When duplicates exist, we keep the record with the latest signalDate so the
+    timeline entry reflects the most recent trigger.
+    """
+    best: Dict[tuple, Dict[str, Any]] = {}
+    for rec in records:
+        key = (rec["ticker"], rec["exitDate"])
+        if key not in best or rec["signalDate"] > best[key]["signalDate"]:
+            best[key] = rec
+    return list(best.values())
+
+
+def _compute_market_breadth(deduped_records: List[Dict[str, Any]]) -> Dict[str, float]:
+    """For each exitDate, compute the fraction of all tickers that won.
+
+    This is the market-wide "breadth" on that date — a high value means the
+    overall market was rising (so individual wins are less remarkable), while
+    a low value means FFIV winning was genuinely against the tide.
+    """
+    by_exit: Dict[str, List[bool]] = defaultdict(list)
+    for rec in deduped_records:
+        by_exit[rec["exitDate"]].append(rec["win"])
+    return {
+        exit_date: round(sum(wins) / len(wins), 3)
+        for exit_date, wins in by_exit.items()
+        if wins
+    }
 
 
 def evaluate_report_date(
@@ -165,7 +220,6 @@ def evaluate_report_date(
         logger.info("No stockSignals in report for %s", signal_date)
         return []
 
-    # Classify each signal's direction; skip mixed
     directional = []
     for sig in signals:
         rule_keys = _resolve_rule_keys(sig)
@@ -182,10 +236,9 @@ def evaluate_report_date(
         })
 
     if not directional:
-        logger.info("All signals mixed or empty for signal_date=%s — nothing to evaluate", signal_date)
+        logger.info("All signals mixed or empty for signal_date=%s", signal_date)
         return []
 
-    # Batch-fetch exit prices for all tickers at once
     tickers = [d["ticker"] for d in directional]
     logger.info(
         "Fetching %d exit prices for signal_date=%s exit_date=%s",
@@ -226,10 +279,7 @@ def evaluate_report_date(
 
 
 def load_eval_files(s3, bucket: str, lookback_days: int = 90) -> List[Dict[str, Any]]:
-    """Load evaluation daily files from the past lookback_days out of S3.
-
-    Missing files (dates without a run or not yet evaluated) are silently skipped.
-    """
+    """Load evaluation daily files from the past lookback_days out of S3."""
     today = date.today()
     all_records: List[Dict[str, Any]] = []
 
@@ -240,9 +290,9 @@ def load_eval_files(s3, bucket: str, lookback_days: int = 90) -> List[Dict[str, 
             data = json.loads(s3.get_object(Bucket=bucket, Key=key)["Body"].read())
             all_records.extend(data)
         except Exception:
-            pass  # file doesn't exist yet for this date — expected
+            pass
 
-    logger.info("Loaded %d evaluation records from past %d days", len(all_records), lookback_days)
+    logger.info("Loaded %d raw evaluation records from past %d days", len(all_records), lookback_days)
     return all_records
 
 
@@ -252,11 +302,16 @@ def build_compliance_summary(
 ) -> Dict[str, Any]:
     """Aggregate evaluation records into per-ticker compliance stats.
 
-    Tickers with fewer than min_signals observations are excluded so the
-    leaderboard only shows names with meaningful sample sizes.
+    Records are first deduplicated by (ticker, exitDate) to prevent weekend
+    duplicate runs from inflating counts. Tickers with fewer than min_signals
+    unique observations are excluded.
     """
+    deduped = _dedup_records(all_records)
+    logger.info("Deduplicated %d raw records → %d unique (ticker, exitDate) pairs",
+                len(all_records), len(deduped))
+
     by_ticker: Dict[str, List[Dict]] = defaultdict(list)
-    for rec in all_records:
+    for rec in deduped:
         by_ticker[rec["ticker"]].append(rec)
 
     tickers_out = []
@@ -276,7 +331,6 @@ def build_compliance_summary(
             "lastSignalDate": last_date,
         })
 
-    # Sort by win rate desc, break ties by total signals desc
     tickers_out.sort(key=lambda t: (-t["winRate"], -t["totalSignals"]))
 
     return {
@@ -287,21 +341,127 @@ def build_compliance_summary(
     }
 
 
+def build_ticker_detail(
+    ticker: str,
+    recs: List[Dict[str, Any]],
+    market_breadth: Dict[str, float],
+) -> Dict[str, Any]:
+    """Build a detailed breakdown for one ticker.
+
+    Includes: per-signal timeline with market breadth, per-rule win stats,
+    dominant rule, and earnings-catalyst flag count.
+    """
+    total = len(recs)
+    wins = sum(1 for r in recs if r["win"])
+
+    # Per-rule statistics
+    rule_stats: Dict[str, Dict] = defaultdict(lambda: {"count": 0, "wins": 0, "returns": []})
+    for rec in recs:
+        for rk in rec["ruleKeys"]:
+            rule_stats[rk]["count"] += 1
+            if rec["win"]:
+                rule_stats[rk]["wins"] += 1
+            rule_stats[rk]["returns"].append(rec["return3d"])
+
+    rule_breakdown = []
+    for rk, stats in sorted(rule_stats.items(), key=lambda x: -x[1]["count"]):
+        cnt = stats["count"]
+        rule_breakdown.append({
+            "ruleKey": rk,
+            "display": RULE_DISPLAY_NAMES.get(rk, rk),
+            "count": cnt,
+            "wins": stats["wins"],
+            "winRate": round(stats["wins"] / cnt, 3),
+            "avgReturn3d": round(sum(stats["returns"]) / cnt, 2),
+        })
+
+    dominant_rule = rule_breakdown[0]["ruleKey"] if rule_breakdown else None
+    dominant_rule_display = rule_breakdown[0]["display"] if rule_breakdown else None
+    earnings_signals = sum(
+        1 for r in recs if "pre_earnings_momentum" in r["ruleKeys"]
+    )
+
+    signals = []
+    for rec in sorted(recs, key=lambda r: r["signalDate"]):
+        signals.append({
+            "signalDate": rec["signalDate"],
+            "exitDate": rec["exitDate"],
+            "direction": rec["direction"],
+            "ruleKeys": rec["ruleKeys"],
+            "ruleDisplays": [RULE_DISPLAY_NAMES.get(rk, rk) for rk in rec["ruleKeys"]],
+            "entryPrice": rec["entryPrice"],
+            "exitPrice": rec["exitPrice"],
+            "return3d": rec["return3d"],
+            "win": rec["win"],
+            "hasEarnings": "pre_earnings_momentum" in rec["ruleKeys"],
+            "marketBreadth": market_breadth.get(rec["exitDate"]),
+        })
+
+    return {
+        "ticker": ticker,
+        "totalSignals": total,
+        "wins": wins,
+        "winRate": round(wins / total, 3),
+        "avgReturn3d": round(sum(r["return3d"] for r in recs) / total, 2),
+        "lastSignalDate": max(r["signalDate"] for r in recs),
+        "dominantRule": dominant_rule,
+        "dominantRuleDisplay": dominant_rule_display,
+        "earningsSignals": earnings_signals,
+        "ruleBreakdown": rule_breakdown,
+        "signals": signals,
+        "updatedAt": date.today().isoformat(),
+    }
+
+
+def write_ticker_details(
+    s3,
+    bucket: str,
+    all_records: List[Dict[str, Any]],
+    qualifying_tickers: List[str],
+    market_breadth: Dict[str, float],
+) -> int:
+    """Write per-ticker detail files to S3 for all qualifying tickers.
+
+    Returns the number of files written.
+    """
+    deduped = _dedup_records(all_records)
+    by_ticker: Dict[str, List[Dict]] = defaultdict(list)
+    for rec in deduped:
+        by_ticker[rec["ticker"]].append(rec)
+
+    written = 0
+    ticker_set = set(qualifying_tickers)
+    for ticker in ticker_set:
+        recs = by_ticker.get(ticker)
+        if not recs:
+            continue
+        detail = build_ticker_detail(ticker, recs, market_breadth)
+        s3.put_object(
+            Bucket=bucket,
+            Key=f"evaluations/tickers/{ticker}.json",
+            Body=json.dumps(detail, indent=2),
+            ContentType="application/json",
+        )
+        written += 1
+
+    logger.info("Wrote %d ticker detail files to evaluations/tickers/", written)
+    return written
+
+
 def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str, Any]]:
     """Main entry point called by the aggregator after publishing the report.
 
     1. Determines signal_date = 3 trading days before run_date.
     2. Writes evaluations/{signal_date}.json if it doesn't already exist.
     3. Loads all eval files from the past 90 days.
-    4. Writes evaluations/compliance-summary.json.
-    5. Returns the compliance summary dict (caller embeds as tickerCompliance in report JSON).
+    4. Builds and writes compliance summary + per-ticker detail files.
+    5. Returns the compliance summary dict (caller embeds as tickerCompliance).
     """
     signal_date = nth_trading_day_before(run_date, 3)
     exit_date = run_date
 
     eval_key = f"evaluations/{signal_date}.json"
 
-    # Skip writing if this date was already evaluated
     already_done = False
     try:
         s3.head_object(Bucket=bucket, Key=eval_key)
@@ -323,7 +483,6 @@ def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str,
         else:
             logger.info("No evaluation records for signal_date=%s — file not written", signal_date)
 
-    # Always rebuild the summary from the full 90-day window
     all_records = load_eval_files(s3, bucket, lookback_days=90)
     if not all_records:
         logger.info("No evaluation records in the past 90 days — skipping compliance summary")
@@ -341,18 +500,18 @@ def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str,
         "Wrote compliance summary: %d tickers qualify (min %d signals)",
         len(summary["tickers"]), summary["minSignals"],
     )
+
+    # Per-ticker detail files
+    deduped = _dedup_records(all_records)
+    market_breadth = _compute_market_breadth(deduped)
+    qualifying = [t["ticker"] for t in summary["tickers"]]
+    write_ticker_details(s3, bucket, all_records, qualifying, market_breadth)
+
     return summary
 
 
 def backfill_evaluations(s3, bucket: str, from_date: str, to_date: str) -> int:
     """Backfill evaluation files for all historical reports in [from_date, to_date].
-
-    For each date D in the range:
-      - Skips dates where evaluations/D.json already exists.
-      - exit_date = 3 trading days after D (must be <= today).
-      - Loads reports/runs/D/report.json from S3.
-      - Fetches historical exit prices via yfinance.
-      - Writes evaluations/D.json.
 
     Returns the number of dates successfully evaluated.
     """
@@ -366,15 +525,12 @@ def backfill_evaluations(s3, bucket: str, from_date: str, to_date: str) -> int:
         d_str = d.isoformat()
         exit_date_str = nth_trading_day_after(d_str, 3)
 
-        # Can't evaluate if exit date is in the future
         if date.fromisoformat(exit_date_str) > today:
             logger.info("Skipping %s — exit date %s is in the future", d_str, exit_date_str)
             d += timedelta(days=1)
             continue
 
         eval_key = f"evaluations/{d_str}.json"
-
-        # Skip already-evaluated dates
         try:
             s3.head_object(Bucket=bucket, Key=eval_key)
             logger.info("Already evaluated %s — skipping", d_str)
@@ -394,11 +550,10 @@ def backfill_evaluations(s3, bucket: str, from_date: str, to_date: str) -> int:
             logger.info("Backfilled %d records for %s (exit=%s)", len(records), d_str, exit_date_str)
             evaluated += 1
         else:
-            logger.info("No records for %s (no report or all mixed) — skipping", d_str)
+            logger.info("No records for %s — skipping", d_str)
 
         d += timedelta(days=1)
 
-    # Rebuild the compliance summary after backfill
     if evaluated > 0:
         all_records = load_eval_files(s3, bucket, lookback_days=90)
         summary = build_compliance_summary(all_records)
@@ -408,9 +563,15 @@ def backfill_evaluations(s3, bucket: str, from_date: str, to_date: str) -> int:
             Body=json.dumps(summary, indent=2),
             ContentType="application/json",
         )
+
+        deduped = _dedup_records(all_records)
+        market_breadth = _compute_market_breadth(deduped)
+        qualifying = [t["ticker"] for t in summary["tickers"]]
+        write_ticker_details(s3, bucket, all_records, qualifying, market_breadth)
+
         logger.info(
-            "Backfill complete: %d dates evaluated, compliance summary has %d tickers",
-            evaluated, len(summary["tickers"]),
+            "Backfill complete: %d dates evaluated, compliance summary has %d tickers, %d detail files written",
+            evaluated, len(summary["tickers"]), len(qualifying),
         )
 
     return evaluated

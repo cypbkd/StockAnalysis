@@ -299,6 +299,103 @@ function renderEarningsCalendar(earningsWatch, reportDate) {
   `;
 }
 
+export function renderComplianceDetail(detail) {
+  if (!detail || !Array.isArray(detail.signals)) return '<p class="empty-state">No detail available.</p>';
+
+  const winRatePct = ((detail.winRate || 0) * 100).toFixed(0);
+  const badgeClass = detail.winRate >= 0.65 ? 'compliance-badge-high'
+    : detail.winRate >= 0.5 ? 'compliance-badge-mid'
+    : 'compliance-badge-low';
+
+  // Rule breakdown rows
+  const ruleRows = (detail.ruleBreakdown || []).map(r => {
+    const wr = (r.winRate * 100).toFixed(0);
+    const rc = r.winRate >= 0.65 ? 'compliance-badge-high' : r.winRate >= 0.5 ? 'compliance-badge-mid' : 'compliance-badge-low';
+    const retClass = r.avgReturn3d >= 0 ? 'is-positive' : 'is-negative';
+    const isDominant = r.ruleKey === detail.dominantRule;
+    return `
+      <tr${isDominant ? ' class="cd-dominant-row"' : ''}>
+        <td class="cd-rule-name">${escapeHtml(r.display)}${isDominant ? ' <span class="cd-dominant-badge">★ dominant</span>' : ''}</td>
+        <td class="font-mono compliance-num">${escapeHtml(String(r.count))}</td>
+        <td><span class="compliance-badge ${rc}">${escapeHtml(wr)}%</span></td>
+        <td class="font-mono compliance-num ${retClass}">${escapeHtml(formatPercent(r.avgReturn3d))}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Signal timeline rows
+  const signalRows = (detail.signals || []).map(s => {
+    const retClass = s.return3d >= 0 ? 'is-positive' : 'is-negative';
+    const winIcon = s.win ? '✓' : '✗';
+    const winClass = s.win ? 'cd-win' : 'cd-loss';
+    const breadth = s.marketBreadth != null
+      ? `<span class="cd-breadth" title="Market breadth: % of all tickers up that day">${escapeHtml((s.marketBreadth * 100).toFixed(0))}% mkt</span>`
+      : '';
+    const earningsBadge = s.hasEarnings
+      ? '<span class="cd-earnings-flag" title="Pre-earnings momentum signal">★ earn</span>'
+      : '';
+    const rules = (s.ruleDisplays || []).map(rd => `<span class="pill rule-tag">${escapeHtml(rd)}</span>`).join('');
+    return `
+      <tr>
+        <td class="font-mono compliance-num cd-date">${escapeHtml(s.signalDate)}</td>
+        <td class="font-mono compliance-num cd-date cd-exit-date">→ ${escapeHtml(s.exitDate)}</td>
+        <td class="cd-rules">${rules}${earningsBadge}</td>
+        <td class="font-mono compliance-num">${escapeHtml(formatPrice(s.entryPrice))}</td>
+        <td class="font-mono compliance-num">${escapeHtml(formatPrice(s.exitPrice))}</td>
+        <td class="font-mono compliance-num ${retClass}">${escapeHtml(formatPercent(s.return3d))}</td>
+        <td class="cd-outcome ${winClass}">${escapeHtml(winIcon)}</td>
+        <td class="cd-breadth-cell">${breadth}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const earningsNote = detail.earningsSignals > 0
+    ? `<span class="cd-stat-pill">★ ${escapeHtml(String(detail.earningsSignals))} earnings-catalyst signal${detail.earningsSignals !== 1 ? 's' : ''}</span>`
+    : '';
+
+  return `
+    <div class="compliance-detail">
+      <div class="cd-header">
+        <div class="cd-summary-stats">
+          <span class="cd-stat-pill"><span class="compliance-badge ${badgeClass}">${escapeHtml(winRatePct)}%</span> win rate</span>
+          <span class="cd-stat-pill">${escapeHtml(String(detail.wins))}/${escapeHtml(String(detail.totalSignals))} signals</span>
+          <span class="cd-stat-pill ${detail.avgReturn3d >= 0 ? 'is-positive' : 'is-negative'}">avg ${escapeHtml(formatPercent(detail.avgReturn3d))} / signal</span>
+          ${earningsNote}
+        </div>
+        ${detail.dominantRuleDisplay ? `
+          <p class="cd-dominant-note">
+            Dominant rule: <strong>${escapeHtml(detail.dominantRuleDisplay)}</strong> — appeared in most signals.
+          </p>
+        ` : ''}
+      </div>
+
+      <div class="cd-section">
+        <h4 class="cd-section-title">Rule Breakdown</h4>
+        <div class="compliance-table-wrapper">
+          <table class="compliance-table cd-rule-table">
+            <thead><tr><th>Rule</th><th>Count</th><th>Win Rate</th><th>Avg 3d Return</th></tr></thead>
+            <tbody>${ruleRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="cd-section">
+        <h4 class="cd-section-title">Signal Timeline
+          <span class="cd-breadth-legend">Market breadth = % of all screened tickers up on exit date</span>
+        </h4>
+        <div class="compliance-table-wrapper">
+          <table class="compliance-table cd-timeline-table">
+            <thead><tr><th>Signal</th><th>Exit</th><th>Rules</th><th>Entry</th><th>Exit Price</th><th>3d Return</th><th>Result</th><th>Breadth</th></tr></thead>
+            <tbody>${signalRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="cd-updated">Detail updated ${escapeHtml(detail.updatedAt || '')}</p>
+    </div>
+  `;
+}
+
 function renderTickerCompliance(compliance) {
   if (!compliance || !Array.isArray(compliance.tickers) || !compliance.tickers.length) {
     return '';
@@ -310,9 +407,11 @@ function renderTickerCompliance(compliance) {
       : t.winRate >= 0.5 ? 'compliance-badge-mid'
       : 'compliance-badge-low';
     const retClass = t.avgReturn3d >= 0 ? 'is-positive' : 'is-negative';
+    const rowId = `cd-row-${escapeHtml(t.ticker)}`;
     return `
       <tr>
         <td class="compliance-ticker">
+          <button class="cd-expand-btn" onclick="window.toggleComplianceDetail('${escapeHtml(t.ticker)}')" aria-expanded="false" aria-controls="${rowId}" title="Explain win rate">▶</button>
           <a href="#symbol/${encodeURIComponent(t.ticker)}" class="symbol-detail-link">${escapeHtml(t.ticker)}</a>
         </td>
         <td class="font-mono compliance-num">${escapeHtml(String(t.totalSignals))}</td>
@@ -320,17 +419,24 @@ function renderTickerCompliance(compliance) {
         <td><span class="compliance-badge ${badgeClass}">${escapeHtml(winRatePct)}%</span></td>
         <td class="font-mono compliance-num ${retClass}">${escapeHtml(formatPercent(t.avgReturn3d))}</td>
       </tr>
+      <tr id="${rowId}" class="cd-detail-row" hidden>
+        <td colspan="5" class="cd-detail-cell">
+          <div class="cd-detail-inner">
+            <span class="cd-loading">Loading detail…</span>
+          </div>
+        </td>
+      </tr>
     `;
   }).join('');
 
-  const note = `Rolling ${compliance.lookbackDays || 90}-day window · min ${compliance.minSignals || 3} signals · Updated ${escapeHtml(compliance.updatedAt || '')}`;
+  const note = `Rolling ${compliance.lookbackDays || 90}-day window · min ${compliance.minSignals || 3} signals · signals deduplicated by exit date · Updated ${escapeHtml(compliance.updatedAt || '')}`;
 
   return `
     <section id="ticker-compliance" class="report-section">
       <div class="section-heading">
         <span class="section-label">Scorecard</span>
         <h2>Ticker Compliance</h2>
-        <p>Tickers that followed our signals most reliably — 3-day forward return after each signal.</p>
+        <p>Tickers that followed our signals most reliably — 3-day forward return after each signal. Click ▶ to explain.</p>
       </div>
       <div class="surface-card compliance-card">
         <p class="compliance-note">${escapeHtml(note)}</p>

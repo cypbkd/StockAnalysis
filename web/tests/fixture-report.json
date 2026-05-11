@@ -115958,5 +115958,16 @@
       "description": "Nine consecutive closes each above the close four bars prior \u2014 DeMark exhaustion signal indicating buying pressure may be spent.",
       "naturalLanguage": "Flag when 9 consecutive bars close above close[i-4] \u2014 TD Sequential sell setup (\u795e\u5947\u4e5d\u8f6c\u5356\u51fa)."
     }
-  ]
+  ],
+  "tickerCompliance": {
+    "updatedAt": "2026-05-01",
+    "lookbackDays": 90,
+    "minSignals": 3,
+    "tickers": [
+      { "ticker": "FFIV", "totalSignals": 7, "wins": 6, "winRate": 0.857, "avgReturn3d": 4.21, "lastSignalDate": "2026-05-05" },
+      { "ticker": "AMD",  "totalSignals": 5, "wins": 4, "winRate": 0.8,   "avgReturn3d": 3.10, "lastSignalDate": "2026-05-04" },
+      { "ticker": "NVDA", "totalSignals": 6, "wins": 4, "winRate": 0.667, "avgReturn3d": 2.85, "lastSignalDate": "2026-05-03" },
+      { "ticker": "MSFT", "totalSignals": 4, "wins": 2, "winRate": 0.5,   "avgReturn3d": 0.92, "lastSignalDate": "2026-05-02" }
+    ]
+  }
 }
