@@ -900,12 +900,23 @@ export function renderSymbolDetail(report, symbol) {
   }).join('');
 
   const conditions = parseReasonConditions(signal.reason);
+  const ruleNames = signal.ruleNames ?? [];
+  const inferredDir = ruleNames.some(n => /bearish/i.test(n)) ? 'bearish' : 'bullish';
+  const sentimentLabel = inferredDir === 'bullish' ? 'Bullish' : 'Bearish';
+  const sentimentClass = inferredDir === 'bullish' ? 'tv-sentiment-bullish' : 'tv-sentiment-bearish';
+  const ruleTagsHtml = ruleNames.length
+    ? `<div class="condition-matched-rules">${ruleNames.map(n => `<span class="pill rule-tag">${escapeHtml(n)}</span>`).join('')}</div>`
+    : '';
   const conditionsHtml = conditions.length ? `
     <div class="reason-conditions">
-      <span class="section-label">Trigger values</span>
+      <div class="reason-conditions-header">
+        <span class="section-label">Trigger values</span>
+        <span class="tv-sentiment ${sentimentClass}">${sentimentLabel}</span>
+      </div>
       <ul class="condition-list">
         ${conditions.map(c => `<li class="condition-item font-mono">${escapeHtml(c)}</li>`).join('')}
       </ul>
+      ${ruleTagsHtml}
     </div>
   ` : '';
 
