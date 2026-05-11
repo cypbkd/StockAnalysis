@@ -418,6 +418,7 @@ Three alarms fire into this topic:
 4. **Mobile layout** — current grid is desktop-first
 5. **DynamoDB-backed rules** — `RULE_CONFIGS` is hardcoded in `data.py`; load from `dev-rules` table at runtime so rules can be updated without a redeploy (mirrors how watchlists work)
 6. **DynamoDB-backed run history** — `dev-runs` table is provisioned but unused; record each nightly run's metadata (date, ticker count, signal count, S3 report key) so run history can be queried without scanning S3
+7. **Balanced bearish signals** — the screener is long-only today (`BULLISH_RULES` has 6 rules, `BEARISH_RULES` only has `dead_cross` and `td_sell` which are not wired into active rule sets). Add active bearish `CanonicalRule` entries (e.g. death cross, breakdown below 200-day MA, RSI overbought + reversal) so the nightly report surfaces short-side candidates alongside bullish ones. The Bullish/Bearish tag in the Trigger Values UI is already in place.
 
 ### Out of scope for MVP
 - Real-time intraday screening
