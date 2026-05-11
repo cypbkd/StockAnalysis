@@ -350,14 +350,22 @@ export function renderComplianceDetail(detail) {
       ? '<span class="cd-earnings-flag" title="Pre-earnings momentum signal">★ earn</span>'
       : '';
     const rules = (s.ruleDisplays || []).map(rd => `<span class="pill rule-tag">${escapeHtml(rd)}</span>`).join('');
+    const dir = s.direction || '';
+    const sentimentLabel = dir === 'bullish' ? 'Bullish' : dir === 'bearish' ? 'Bearish' : 'Neutral';
+    const sentimentClass = dir === 'bullish' ? 'cd-sentiment-bullish' : dir === 'bearish' ? 'cd-sentiment-bearish' : 'cd-sentiment-neutral';
     return `
       <tr>
-        <td class="font-mono compliance-num cd-date">${escapeHtml(s.signalDate)}</td>
-        <td class="font-mono compliance-num cd-date cd-exit-date">→ ${escapeHtml(s.exitDate)}</td>
-        <td class="cd-rules">${rules}${earningsBadge}</td>
-        <td class="font-mono compliance-num">${escapeHtml(formatPrice(s.entryPrice))}</td>
-        <td class="font-mono compliance-num">${escapeHtml(formatPrice(s.exitPrice))}</td>
+        <td class="font-mono compliance-num cd-date">
+          ${escapeHtml(s.signalDate)}<br>
+          <span class="cd-sub-price">${escapeHtml(formatPrice(s.entryPrice))}</span>
+        </td>
+        <td class="font-mono compliance-num cd-date cd-exit-date">
+          → ${escapeHtml(s.exitDate)}<br>
+          <span class="cd-sub-price">${escapeHtml(formatPrice(s.exitPrice))}</span>
+        </td>
         <td class="font-mono compliance-num ${retClass}">${escapeHtml(formatPercent(s.return3d))}</td>
+        <td class="cd-rules">${rules}${earningsBadge}</td>
+        <td class="cd-sentiment-cell"><span class="cd-sentiment ${sentimentClass}">${sentimentLabel}</span></td>
         <td class="cd-outcome ${winClass}">${escapeHtml(winIcon)}</td>
         <td class="cd-breadth-cell">${breadth}</td>
       </tr>
@@ -400,7 +408,7 @@ export function renderComplianceDetail(detail) {
         </h4>
         <div class="compliance-table-wrapper">
           <table class="compliance-table cd-timeline-table">
-            <thead><tr><th>Signal</th><th>Exit</th><th>Rules</th><th>Entry</th><th>Exit Price</th><th>3d Return</th><th>Result</th><th>Breadth</th></tr></thead>
+            <thead><tr><th>Signal</th><th>Exit</th><th>3d Return</th><th>Rules</th><th>Sentiment</th><th>Result</th><th>Breadth</th></tr></thead>
             <tbody>${signalRows}</tbody>
           </table>
         </div>

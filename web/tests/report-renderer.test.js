@@ -749,3 +749,37 @@ test('renderComplianceDetail renders rule tag pills for each signal', () => {
   // 1 + 2 + 1 = 4 rule pills across 3 signals
   assert.equal(pills, 4);
 });
+
+test('renderComplianceDetail shows Sentiment column with Bullish/Bearish/Neutral labels', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  // All fixture signals are bullish → expect Bullish badges, no Bearish/Neutral
+  assert.match(html, /cd-sentiment-bullish/);
+  assert.match(html, /Bullish/);
+
+  const detailWithMixed = {
+    ...sampleDetail,
+    signals: [
+      { ...sampleDetail.signals[0], direction: 'bearish' },
+      { ...sampleDetail.signals[1], direction: null },
+    ],
+  };
+  const html2 = renderComplianceDetail(detailWithMixed);
+  assert.match(html2, /cd-sentiment-bearish/);
+  assert.match(html2, /Bearish/);
+  assert.match(html2, /cd-sentiment-neutral/);
+  assert.match(html2, /Neutral/);
+});
+
+test('renderComplianceDetail consolidates entry date+price and exit date+price in same cell', () => {
+  const html = renderComplianceDetail(sampleDetail);
+  // Entry price should appear alongside signal date (in same row structure) — both present
+  assert.match(html, /2026-04-24[\s\S]{0,100}303\.16/);
+  // Exit price should appear alongside exit date
+  assert.match(html, /2026-04-29[\s\S]{0,100}328\.15/);
+  // The old separate "Entry" and "Exit Price" column headers should not exist
+  assert.doesNotMatch(html, /<th>Entry<\/th>/);
+  assert.doesNotMatch(html, /<th>Exit Price<\/th>/);
+  // New header order: Signal | Exit | 3d Return | Rules | Sentiment
+  assert.match(html, /<th>3d Return<\/th>/);
+  assert.match(html, /<th>Sentiment<\/th>/);
+});
