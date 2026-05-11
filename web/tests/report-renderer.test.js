@@ -35,7 +35,7 @@ test('renderReportApp includes the key dashboard sections', () => {
   const html = renderReportApp(sampleReport);
 
   assert.match(html, /Analysis Report/);
-  assert.match(html, /Today Highlights/);
+  assert.match(html, /Today's Highlights/);
   assert.match(html, /Top Stock Signals/);
   assert.match(html, /Top Options Ideas/);
   assert.match(html, /Earnings Watch/);
@@ -88,9 +88,9 @@ test('renderReportApp renders a scrollable day navigation for historical reports
   assert.match(html, /2026-04-21/);
 });
 
-test('renderReportApp uses "Today Highlights" as the Front Page heading', () => {
+test('renderReportApp uses "Today\'s Highlights" as the Front Page heading', () => {
   const html = renderReportApp(sampleReport);
-  assert.match(html, /Today Highlights/);
+  assert.match(html, /Today's Highlights/);
   assert.doesNotMatch(html, /SPY 500 Coverage/);
 });
 

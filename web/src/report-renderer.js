@@ -1018,7 +1018,7 @@ export function renderReportApp(report) {
           <section id="summary" class="report-section lead-section newsprint-texture" data-section="summary-metrics">
             <article class="lead-story lead-story-full">
               <span class="section-label">Front Page</span>
-              <h2>Today Highlights</h2>
+              <h2>Today's Highlights</h2>
               ${normalized.newsSummary ? `<p class="hero-copy lead-copy">${escapeHtml(normalized.newsSummary)}</p>` : ''}
               ${renderFrontPageHighlights(normalized.highlights)}
               <p class="lead-note">
