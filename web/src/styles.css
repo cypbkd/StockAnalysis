@@ -655,10 +655,9 @@ dd {
 }
 
 .rule-tag {
-  font-family: var(--font-mono);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 0.65rem;
   padding: 2px 6px;
-  border-radius: 3px;
   min-height: unset;
   min-width: unset;
 }
@@ -1780,8 +1779,8 @@ details[open] .rule-explanation-header {
 .compliance-note {
   padding: 8px 16px;
   font-size: 0.75rem;
-  color: var(--color-ink-muted);
-  border-bottom: 1px solid var(--color-border);
+  color: var(--neutral-500);
+  border-bottom: 1px solid var(--ink);
   margin: 0;
 }
 
@@ -1798,17 +1797,17 @@ details[open] .rule-explanation-header {
 .compliance-table thead th {
   text-align: left;
   padding: 8px 16px;
-  background: var(--color-paper-alt, #f5f2ec);
-  border-bottom: 2px solid var(--color-border);
-  font-family: var(--font-sans);
+  background: var(--neutral-100);
+  border-bottom: 2px solid var(--ink);
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-ink-muted);
+  color: var(--neutral-600);
 }
 
 .compliance-table tbody tr {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--muted);
 }
 
 .compliance-table tbody tr:last-child {
@@ -1816,7 +1815,7 @@ details[open] .rule-explanation-header {
 }
 
 .compliance-table tbody tr:hover {
-  background: var(--color-paper-alt, #f5f2ec);
+  background: var(--neutral-100);
 }
 
 .compliance-table td {
@@ -1825,10 +1824,10 @@ details[open] .rule-explanation-header {
 }
 
 .compliance-ticker a {
-  font-family: var(--font-mono);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-weight: 700;
   font-size: 0.9rem;
-  color: var(--color-accent);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -1843,25 +1842,25 @@ details[open] .rule-explanation-header {
 .compliance-badge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 3px;
-  font-family: var(--font-mono);
+  border: 1px solid var(--ink);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 0.8rem;
   font-weight: 700;
 }
 
 .compliance-badge-high {
-  background: #d4edda;
-  color: #155724;
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .compliance-badge-mid {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--neutral-400);
+  color: var(--ink);
 }
 
 .compliance-badge-low {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1873,25 +1872,25 @@ details[open] .rule-explanation-header {
   border: none;
   cursor: pointer;
   font-size: 0.7rem;
-  color: var(--color-ink-muted);
+  color: var(--neutral-500);
   padding: 0 6px 0 0;
   line-height: 1;
   vertical-align: middle;
 }
 
-.cd-expand-btn:hover { color: var(--color-accent); }
+.cd-expand-btn:hover { color: var(--accent); }
 
 .cd-detail-row > .cd-detail-cell {
   padding: 0;
-  background: var(--color-paper-alt, #f8f5ef);
-  border-bottom: 2px solid var(--color-border);
+  background: var(--neutral-100);
+  border-bottom: 2px solid var(--ink);
 }
 
 .cd-detail-inner { padding: 16px 20px; }
 
 .cd-loading {
   font-size: 0.8rem;
-  color: var(--color-ink-muted);
+  color: var(--neutral-500);
   font-style: italic;
 }
 
@@ -1911,27 +1910,26 @@ details[open] .rule-explanation-header {
   align-items: center;
   gap: 5px;
   font-size: 0.8rem;
-  background: var(--color-paper, #fff);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
   padding: 2px 8px;
 }
 
 .cd-dominant-note {
   font-size: 0.8rem;
-  color: var(--color-ink-muted);
+  color: var(--neutral-500);
   margin: 0;
 }
 
 .cd-section { display: flex; flex-direction: column; gap: 6px; }
 
 .cd-section-title {
-  font-family: var(--font-sans);
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-ink-muted);
+  color: var(--neutral-600);
   margin: 0;
   display: flex;
   align-items: baseline;
@@ -1943,14 +1941,14 @@ details[open] .rule-explanation-header {
   font-size: 0.68rem;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--color-ink-muted);
+  color: var(--neutral-500);
 }
 
 /* Rule table */
-.cd-rule-table .cd-dominant-row { background: #fdf9e8; }
+.cd-rule-table .cd-dominant-row { background: var(--neutral-100); }
 .cd-dominant-badge {
   font-size: 0.68rem;
-  color: #856404;
+  color: var(--neutral-600);
   font-weight: 600;
   margin-left: 4px;
 }
@@ -1958,14 +1956,13 @@ details[open] .rule-explanation-header {
 
 /* Timeline table */
 .cd-date { font-size: 0.78rem; white-space: nowrap; }
-.cd-exit-date { color: var(--color-ink-muted); }
+.cd-exit-date { color: var(--neutral-500); }
 .cd-rules { max-width: 260px; }
 .cd-rules .rule-tag { font-size: 0.6rem; padding: 1px 4px; }
 .cd-earnings-flag {
   display: inline-block;
-  background: #fff3cd;
-  color: #856404;
-  border-radius: 3px;
+  background: var(--neutral-200);
+  color: var(--neutral-700);
   font-size: 0.6rem;
   font-weight: 700;
   padding: 1px 4px;
@@ -1973,14 +1970,14 @@ details[open] .rule-explanation-header {
   vertical-align: middle;
 }
 .cd-outcome { font-weight: 700; text-align: center; font-size: 0.9rem; }
-.cd-win { color: #155724; }
-.cd-loss { color: #721c24; }
+.cd-win { color: var(--ink); font-weight: 700; }
+.cd-loss { color: var(--neutral-500); }
 .cd-breadth-cell { font-size: 0.72rem; white-space: nowrap; }
-.cd-breadth { color: var(--color-ink-muted); }
+.cd-breadth { color: var(--neutral-500); }
 
 .cd-updated {
   font-size: 0.7rem;
-  color: var(--color-ink-muted);
+  color: var(--neutral-500);
   margin: 0;
   text-align: right;
 }
