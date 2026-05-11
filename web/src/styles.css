@@ -1969,6 +1969,20 @@ details[open] .rule-explanation-header {
   margin-left: 2px;
   vertical-align: middle;
 }
+.cd-sub-price { font-size: 0.72rem; color: var(--neutral-500); }
+.cd-sentiment-cell { text-align: center; white-space: nowrap; }
+.cd-sentiment {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.cd-sentiment-bullish { background: #d1fae5; color: #065f46; }
+.cd-sentiment-bearish { background: #fee2e2; color: #991b1b; }
+.cd-sentiment-neutral  { background: var(--neutral-200); color: var(--neutral-600); }
 .cd-outcome { font-weight: 700; text-align: center; font-size: 0.9rem; }
 .cd-win { color: var(--ink); font-weight: 700; }
 .cd-loss { color: var(--neutral-500); }
