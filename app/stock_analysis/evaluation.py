@@ -460,6 +460,11 @@ def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str,
     signal_date = nth_trading_day_before(run_date, 3)
     exit_date = run_date
 
+    logger.info(
+        "run_nightly_evaluation: run_date=%s signal_date=%s exit_date=%s",
+        run_date, signal_date, exit_date,
+    )
+
     eval_key = f"evaluations/{signal_date}.json"
 
     already_done = False
@@ -471,17 +476,24 @@ def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str,
         pass
 
     if not already_done:
-        records = evaluate_report_date(s3, bucket, signal_date, exit_date)
-        if records:
-            s3.put_object(
-                Bucket=bucket,
-                Key=eval_key,
-                Body=json.dumps(records, indent=2),
-                ContentType="application/json",
+        exit_weekday = date.fromisoformat(exit_date).weekday()
+        if exit_weekday >= 5:
+            # Weekend — no market data; write an empty file so future runs skip this date
+            logger.info(
+                "exit_date=%s is a weekend (weekday=%d) — skipping price fetch, writing empty eval file",
+                exit_date, exit_weekday,
             )
-            logger.info("Wrote %d evaluation records to %s", len(records), eval_key)
+            records = []
         else:
-            logger.info("No evaluation records for signal_date=%s — file not written", signal_date)
+            records = evaluate_report_date(s3, bucket, signal_date, exit_date)
+        # Always write the file (even empty []) so already_done=True on future runs
+        s3.put_object(
+            Bucket=bucket,
+            Key=eval_key,
+            Body=json.dumps(records, indent=2),
+            ContentType="application/json",
+        )
+        logger.info("Wrote %d evaluation records to %s", len(records), eval_key)
 
     all_records = load_eval_files(s3, bucket, lookback_days=90)
     if not all_records:
