@@ -1695,3 +1695,99 @@ details[open] .rule-explanation-header {
     animation-duration: 40s;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Ticker Compliance Scorecard
+   --------------------------------------------------------------------------- */
+
+.compliance-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.compliance-note {
+  padding: 8px 16px;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  border-bottom: 1px solid var(--color-border);
+  margin: 0;
+}
+
+.compliance-table-wrapper {
+  overflow-x: auto;
+}
+
+.compliance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.compliance-table thead th {
+  text-align: left;
+  padding: 8px 16px;
+  background: var(--color-paper-alt, #f5f2ec);
+  border-bottom: 2px solid var(--color-border);
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-muted);
+}
+
+.compliance-table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.compliance-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.compliance-table tbody tr:hover {
+  background: var(--color-paper-alt, #f5f2ec);
+}
+
+.compliance-table td {
+  padding: 8px 16px;
+  vertical-align: middle;
+}
+
+.compliance-ticker a {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.compliance-ticker a:hover {
+  text-decoration: underline;
+}
+
+.compliance-num {
+  font-size: 0.82rem;
+}
+
+.compliance-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.compliance-badge-high {
+  background: #d4edda;
+  color: #155724;
+}
+
+.compliance-badge-mid {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.compliance-badge-low {
+  background: #f8d7da;
+  color: #721c24;
+}

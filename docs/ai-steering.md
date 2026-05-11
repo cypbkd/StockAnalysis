@@ -138,6 +138,9 @@ derived/
 reports/
   latest/report.json          ← always-current (CloudFront-invalidated each night)
   runs/YYYY-MM-DD/report.json ← historical archive
+evaluations/
+  YYYY-MM-DD.json             ← per-signal-date evaluation records (one file per trading day)
+  compliance-summary.json     ← rolling 90-day ticker win/loss leaderboard (rewritten nightly)
 index.html                    ← dashboard shell (bucket root = CloudFront default root)
 src/                          ← JS/CSS assets
 ```
@@ -381,7 +384,7 @@ Three alarms fire into this topic:
 - `scripts/run-aggregator.sh` — invoke aggregator only (skips coordinator + workers); useful after news/config fixes
 - Historical report navigation via `/?date=YYYY-MM-DD`
 - CloudWatch alarms for coordinator errors, aggregator errors, DLQ depth
-- Full test suite: Python pytest (122), CDK Jest (15), JS node:test (48) = **185 tests**
+- Full test suite: Python pytest (148), CDK Jest (15), JS node:test (48) = **211 tests**
 - Dashboard UX pass: date-based title, timezone abbreviation, ISO timestamp fix, score badge removed, duplicate company name guard, compact rule-tag chips, local dev server fixture routing
 - **Per-symbol detail pages**: hash-routed (`#symbol/TICKER`); shows price/status header, parsed trigger-condition chips, one rule card per matched rule with description + natural-language statement; Yahoo Finance chart link; back navigation
 - `COMPANY_NAMES` expanded to ~300 entries covering full S&P 500 + QQQ + DJIA + all watchlist tickers (was ~70 with duplicate keys)
@@ -396,6 +399,7 @@ Three alarms fire into this topic:
 - **Long-term (200-day) S/R levels** (`data.py`): `fetch_market_data` now computes `sma_200`, `high_200d`, `low_200d`, and standard pivot-point formula applied to the 200-day H/L range → `lt_pivot_r1/r2/s1/s2` (S2 clamped ≥ 0); also stores full current-session OHLC (`open`, `high`, `low`) and prior-session OHLC (`prev_open`, `prev_high`, `prev_low`); stored in `technicalData` as `sma200`, `high200d`, `low200d`, `ltR1/R2/S1/S2`, `sessionOpen/High/Low`, `prevOpen/Close/High/Low`, `pivotPoint`
 - **Split S/R panels on detail page**: two separate sections render below the earnings badge: (1) **Daily Session & Pivot Levels** (`renderStLevels`) — current session OHLC, prior-session reference, daily pivot P/R1/R2/S1/S2; (2) **200-Day S/R Map** (`renderLtLevels`) — 200d High/Low, SMA-200, LT R1/R2/S1/S2; both render immediately without waiting for the AI analysis
 - **Earnings badge on detail page**: if `earningsInDays` is in [−7, 7], a badge renders immediately below the header showing the date, days count, and timing (Before Open / After Close / TBD); urgent style (red border) for ≤1 day, soon style (green border) for 2–7 days
+- **Ticker Compliance Scorecard** (`evaluation.py`): each nightly aggregator run evaluates signals from exactly 3 trading days ago — loads that day's report from S3, fetches today's closing prices (batch yfinance), and writes `evaluations/YYYY-MM-DD.json`. Reads all eval files from the past 90 days, builds a per-ticker win/loss leaderboard (≥3 signals required), and writes `evaluations/compliance-summary.json`. The compliance summary is embedded in the report JSON as `tickerCompliance` and rendered as a "Ticker Compliance" section in the dashboard. Backfill historical evaluations with `scripts/backfill-evaluations.sh [--from YYYY-MM-DD] [--to YYYY-MM-DD]`.
 - **TradingView candlestick chart**: on detail page, `main.js` dynamically injects the TradingView Advanced Chart widget (`embed-widget-advanced-chart.js`, style: "1" = candles, 6-month range) into the `#tradingview-chart-container` after the innerHTML is set; uses the ticker symbol directly (TradingView auto-resolves US exchange)
 - **Earnings `run_date` fix** (`earnings.py`, `worker.py`): `fetch_earnings_dates` now accepts a `run_date` parameter (YYYY-MM-DD) and uses it as the reference date for computing `earnings_in_days`. Workers pass `run_date` from the SQS message body. This prevents a 1-day shift caused by the nightly workers executing after midnight UTC (5 PM PT = midnight UTC), which previously made `date.today()` return the next calendar day, causing Tue/Wed earnings to be mis-classified as "very high" priority in the earnings watch calendar.
 - **Real options chain analysis** (`options.py`): replaces the previous naive strategy assignment (day change ≥ 0 → "Bullish call spread") with live yfinance option chain fetches. `build_options_ideas()` now runs against **all matched tickers** (no fixed universe), taking the top `max_candidates=40` by match_count, fetching real chains for each, and returning up to `max_ideas=10`. Picks the nearest ~21 DTE expiration, selects a specific strike (~5% OTM), and returns `OptionIdea` objects with bid/ask mid, IV%, open interest, volume, and breakeven/net-debit info. Bullish signals → cash-secured put; bearish signals → bear put spread. Min OI filter of 50 contracts ensures liquidity. Falls back gracefully if yfinance is unavailable.
@@ -405,11 +409,12 @@ Three alarms fire into this topic:
 - **Lambda layer `:3`** (`arn:aws:lambda:us-west-2:841425310647:layer:dev-stock-analysis-deps:3`) — swapped `anthropic` for `google-genai>=1.0`; uploaded via S3 (zip ~52 MB)
 
 ### Next priorities ⬜
-1. **Subscribe alarm email** — manual: `aws sns subscribe` to `dev-stock-analysis-alarms`
-2. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
-3. **Mobile layout** — current grid is desktop-first
-4. **DynamoDB-backed rules** — `RULE_CONFIGS` is hardcoded in `data.py`; load from `dev-rules` table at runtime so rules can be updated without a redeploy (mirrors how watchlists work)
-5. **DynamoDB-backed run history** — `dev-runs` table is provisioned but unused; record each nightly run's metadata (date, ticker count, signal count, S3 report key) so run history can be queried without scanning S3
+1. **Backfill evaluations** — run `./scripts/backfill-evaluations.sh` once after deploying to populate historical compliance data. Compliance scorecard will be empty until at least 3 signals per ticker accumulate.
+2. **Subscribe alarm email** — manual: `aws sns subscribe` to `dev-stock-analysis-alarms`
+3. **SES email** — verify an identity; aggregator sends nightly summary linking to the dashboard
+4. **Mobile layout** — current grid is desktop-first
+5. **DynamoDB-backed rules** — `RULE_CONFIGS` is hardcoded in `data.py`; load from `dev-rules` table at runtime so rules can be updated without a redeploy (mirrors how watchlists work)
+6. **DynamoDB-backed run history** — `dev-runs` table is provisioned but unused; record each nightly run's metadata (date, ticker count, signal count, S3 report key) so run history can be queried without scanning S3
 
 ### Out of scope for MVP
 - Real-time intraday screening

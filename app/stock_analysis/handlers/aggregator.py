@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 import boto3
 
 from stock_analysis.data import RULE_CONFIGS
+from stock_analysis.evaluation import run_nightly_evaluation
 from stock_analysis.news import generate_news_summary
 from stock_analysis.options import build_options_ideas
 from stock_analysis.rules import CanonicalRule
@@ -88,6 +89,7 @@ class _SignalProxy:
         self.metrics = {
             **d["metrics"],
             "rule_names": d.get("rule_names", []),
+            "rule_keys": d.get("rule_keys", []),
             "match_count": d.get("match_count", 1),
             "weighted_score": d.get("weighted_score", 0),
             "watchlists": d.get("watchlists", []),
@@ -177,6 +179,7 @@ def handler(event: dict, context: object) -> dict:
                 "match_count": len(matched_rules),
                 "weighted_score": weighted_score,
                 "rule_names": [mr["rule_name"] for mr in matched_rules],
+                "rule_keys": [mr["rule_key"] for mr in matched_rules],
                 "watchlists": ticker_watchlists,
             })
 
@@ -300,7 +303,19 @@ def handler(event: dict, context: object) -> dict:
     news_summary = generate_news_summary(news_symbols, run_date)
     logger.info("News summary: %d chars", len(news_summary))
 
-    # 12. Build and publish the report
+    # 12. Signal evaluation — evaluate signals from 3 trading days ago, build compliance summary
+    logger.info("Running nightly signal evaluation for run_date=%s", run_date)
+    try:
+        ticker_compliance = run_nightly_evaluation(s3, bucket, run_date)
+        logger.info(
+            "Evaluation complete: %d tickers in compliance summary",
+            len(ticker_compliance["tickers"]) if ticker_compliance else 0,
+        )
+    except Exception as exc:
+        logger.error("Signal evaluation failed (non-fatal): %s", exc)
+        ticker_compliance = None
+
+    # 13. Build and publish the report
     report = build_nightly_report(
         trade_date=date.fromisoformat(run_date),
         timezone="America/Los_Angeles",
@@ -315,6 +330,9 @@ def handler(event: dict, context: object) -> dict:
         news_summary=news_summary,
         trending_tickers=trending_tickers,
     )
+
+    if ticker_compliance:
+        report["tickerCompliance"] = ticker_compliance
 
     report_json = json.dumps(report, indent=2)
     s3.put_object(Bucket=bucket, Key="reports/latest/report.json",

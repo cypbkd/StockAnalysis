@@ -231,6 +231,7 @@ def _result_to_signal(result: ScreeningResult) -> Dict[str, Any]:
         "companyName": metrics.get("company_name", result.symbol),
         "watchlists": metrics.get("watchlists", []),
         "ruleNames": metrics.get("rule_names") or ([metrics["rule_name"]] if metrics.get("rule_name") else []),
+        "ruleKeys": metrics.get("rule_keys", []),
         "score": weighted_score,
         "lastPrice": metrics.get("close", 0.0),
         "changePercent": metrics.get("change_percent", 0.0),

@@ -26,6 +26,7 @@ export function createEmptyReport(overrides = {}) {
     optionsSignals: [],
     earningsWatch: [],
     ruleSets: [],
+    tickerCompliance: null,
     ...overrides,
   };
 }
