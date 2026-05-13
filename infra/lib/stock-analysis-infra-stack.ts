@@ -189,7 +189,7 @@ export class StockAnalysisInfraStack extends Stack {
     const aggregatorFn = new lambda.Function(this, "AggregatorFunction", {
       ...sharedFnProps,
       handler: "stock_analysis.handlers.aggregator.handler",
-      timeout: Duration.minutes(5),
+      timeout: Duration.minutes(10),
       memorySize: 512,
       environment: {
         ...sharedEnv,
