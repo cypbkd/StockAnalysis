@@ -1023,7 +1023,6 @@ export function renderReportApp(report) {
 
           <nav class="quick-nav" aria-label="Report sections">
             <a href="#trending">Trending</a>
-            <a href="#watchlists">Watchlists</a>
             <a href="#earnings-watch">Earnings</a>
             <a href="#stock-signals">Stocks</a>
             <a href="#options-signals">Options</a>
@@ -1042,7 +1041,12 @@ export function renderReportApp(report) {
               ${renderFrontPageHighlights(normalized.highlights)}
               <p class="lead-note">
                 This analysis currently spans ${escapeHtml(normalized.universe.totalSymbols)} symbols
-                across ${escapeHtml(normalized.universe.activeLists.length)} active watchlists.
+                across ${escapeHtml(normalized.universe.activeLists.length)} active watchlists${
+                  normalized.watchlists && normalized.watchlists.length
+                    ? ' - ' + normalized.watchlists.slice(0, -1).map(w => `${escapeHtml(w.name)} (${escapeHtml(w.symbols)} tickers)`).join(', ')
+                      + (normalized.watchlists.length > 1 ? ' and ' + escapeHtml(normalized.watchlists[normalized.watchlists.length - 1].name) + ' (' + escapeHtml(normalized.watchlists[normalized.watchlists.length - 1].symbols) + ' tickers)' : '')
+                    : ''
+                }.
               </p>
             </article>
 
@@ -1059,15 +1063,6 @@ export function renderReportApp(report) {
             ...(normalized.stockSignals ?? []).map(s => s.symbol),
             ...(normalized.optionsSignals ?? []).map(s => s.symbol),
           ]))}
-
-          <section id="watchlists" class="report-section">
-            <div class="section-heading">
-              <span class="section-label">Coverage Map</span>
-              <h2>Watchlists</h2>
-              <p>Independent list definitions with their own rule focus.</p>
-            </div>
-            ${renderList(normalized.watchlists, 'No watchlists configured.', renderWatchlistCard)}
-          </section>
 
           <section id="earnings-watch" class="report-section" data-section="earnings-watch">
             <div class="section-heading">
