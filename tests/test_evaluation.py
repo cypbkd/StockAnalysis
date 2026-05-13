@@ -410,13 +410,11 @@ def test_run_nightly_evaluation_writes_eval_and_summary():
     ]
 
     s3 = MagicMock()
-    # head_object raises to indicate the eval file doesn't exist yet
-    s3.head_object.side_effect = Exception("NoSuchKey")
+    # First get_object call: already_done check — file doesn't exist
+    # Second get_object call: report fetch in evaluate_report_date
     s3.get_object.side_effect = [
-        # First call: report for signal_date
-        {"Body": MagicMock(read=lambda: json.dumps(report).encode())},
-        # Subsequent calls: no eval files in the 90-day window
-        *[Exception("NoSuchKey")] * 90,
+        Exception("NoSuchKey"),  # already_done check: no existing eval file
+        {"Body": MagicMock(read=lambda: json.dumps(report).encode())},  # report fetch
     ]
 
     with patch("stock_analysis.evaluation._fetch_prices_batch", return_value={"AAPL": 102.0}):
@@ -433,12 +431,13 @@ def test_run_nightly_evaluation_writes_eval_and_summary():
 
 def test_run_nightly_evaluation_weekend_skips_price_fetch_and_writes_empty_file():
     """Weekend run_date must write an empty eval file without calling yfinance."""
-    # 2026-05-11 is a Sunday (weekday=6)
-    run_date = "2026-05-11"
+    # 2026-05-10 is a Sunday (weekday=6)
+    run_date = "2026-05-10"
     signal_date = nth_trading_day_before(run_date, 3)
 
     s3 = MagicMock()
-    s3.head_object.side_effect = Exception("NoSuchKey")  # eval file doesn't exist yet
+    # already_done check: file doesn't exist yet
+    s3.get_object.side_effect = Exception("NoSuchKey")
 
     with patch("stock_analysis.evaluation._fetch_prices_batch") as mock_fetch:
         with patch("stock_analysis.evaluation.load_eval_files", return_value=[]):
@@ -447,7 +446,7 @@ def test_run_nightly_evaluation_weekend_skips_price_fetch_and_writes_empty_file(
     # yfinance must NOT be called on weekends
     mock_fetch.assert_not_called()
 
-    # Empty eval file must be written so future runs see already_done=True
+    # Empty eval file must be written so weekend retries see already_done=True
     put_keys = [call[1]["Key"] for call in s3.put_object.call_args_list]
     assert f"evaluations/{signal_date}.json" in put_keys
     eval_body = next(
@@ -459,17 +458,85 @@ def test_run_nightly_evaluation_weekend_skips_price_fetch_and_writes_empty_file(
 
 
 def test_run_nightly_evaluation_skips_already_evaluated():
-    s3 = MagicMock()
-    # head_object succeeds → already evaluated
-    s3.head_object.return_value = {}
+    """Weekday run with an existing non-empty eval file must not re-evaluate."""
+    # 2026-05-09 is a Friday (weekday=4)
+    run_date = "2026-05-09"
+    signal_date = nth_trading_day_before(run_date, 3)
+    existing_records = [
+        {"ticker": "AAPL", "direction": "bullish", "win": True, "return3d": 2.0,
+         "signalDate": signal_date, "exitDate": run_date,
+         "ruleKeys": ["ma_stack"], "entryPrice": 100.0, "exitPrice": 102.0},
+    ]
 
-    with patch("stock_analysis.evaluation.load_eval_files", return_value=[]):
-        result = run_nightly_evaluation(s3, "test-bucket", "2026-05-09")
+    s3 = MagicMock()
+    # already_done check: file exists with actual records
+    s3.get_object.return_value = {
+        "Body": MagicMock(read=lambda: json.dumps(existing_records).encode())
+    }
+
+    with patch("stock_analysis.evaluation.load_eval_files", return_value=existing_records):
+        result = run_nightly_evaluation(s3, "test-bucket", run_date)
 
     # No new eval file written (already_done=True skips the write block)
     put_keys = [call[1].get("Key", "") for call in s3.put_object.call_args_list]
-    signal_date = nth_trading_day_before("2026-05-09", 3)
     assert f"evaluations/{signal_date}.json" not in put_keys
+
+
+def test_run_nightly_evaluation_monday_overwrites_weekend_placeholder():
+    """Monday run must re-evaluate when the eval file is an empty weekend placeholder.
+
+    Regression test for the bug introduced by PR #25: Saturday/Sunday/Monday all
+    share the same signal_date. The weekend run writes an empty placeholder file;
+    the following Monday run must detect the empty file and perform the real evaluation.
+    """
+    # Monday 2026-05-11 shares signal_date 2026-05-06 with Sat May 9 and Sun May 10
+    run_date = "2026-05-11"
+    signal_date = nth_trading_day_before(run_date, 3)
+    assert signal_date == "2026-05-06", f"Expected 2026-05-06 got {signal_date}"
+
+    report = {
+        "reportDate": signal_date,
+        "stockSignals": [
+            {"symbol": "MSFT", "ruleKeys": ["golden_cross"], "lastPrice": 400.0, "ruleNames": []},
+            {"symbol": "MSFT", "ruleKeys": ["golden_cross"], "lastPrice": 400.0, "ruleNames": []},
+            {"symbol": "MSFT", "ruleKeys": ["golden_cross"], "lastPrice": 400.0, "ruleNames": []},
+        ],
+    }
+    eval_records = [
+        {"ticker": "MSFT", "direction": "bullish", "win": True, "return3d": 1.0,
+         "signalDate": signal_date, "exitDate": run_date,
+         "ruleKeys": ["golden_cross"], "entryPrice": 400.0, "exitPrice": 404.0},
+        {"ticker": "MSFT", "direction": "bullish", "win": True, "return3d": 1.0,
+         "signalDate": signal_date, "exitDate": run_date,
+         "ruleKeys": ["golden_cross"], "entryPrice": 400.0, "exitPrice": 404.0},
+        {"ticker": "MSFT", "direction": "bullish", "win": True, "return3d": 1.0,
+         "signalDate": signal_date, "exitDate": run_date,
+         "ruleKeys": ["golden_cross"], "entryPrice": 400.0, "exitPrice": 404.0},
+    ]
+
+    s3 = MagicMock()
+    # already_done check: eval file exists but is EMPTY (left by weekend run)
+    s3.get_object.side_effect = [
+        {"Body": MagicMock(read=lambda: b"[]")},  # empty placeholder from weekend
+        {"Body": MagicMock(read=lambda: json.dumps(report).encode())},  # report fetch
+    ]
+
+    with patch("stock_analysis.evaluation._fetch_prices_batch", return_value={"MSFT": 404.0}):
+        with patch("stock_analysis.evaluation.load_eval_files", return_value=eval_records):
+            result = run_nightly_evaluation(s3, "test-bucket", run_date)
+
+    # Monday must have overwritten the placeholder with real records
+    put_keys = [call[1]["Key"] for call in s3.put_object.call_args_list]
+    assert f"evaluations/{signal_date}.json" in put_keys, \
+        "Monday run must write real eval data over the empty weekend placeholder"
+    written_body = next(
+        json.loads(call[1]["Body"])
+        for call in s3.put_object.call_args_list
+        if call[1]["Key"] == f"evaluations/{signal_date}.json"
+    )
+    assert len(written_body) > 0, "Monday eval file must contain actual records"
+    # Summary must be present since real records exist
+    assert result is not None
 
 
 # ---------------------------------------------------------------------------
@@ -478,7 +545,7 @@ def test_run_nightly_evaluation_skips_already_evaluated():
 
 def test_backfill_skips_future_exit_dates():
     s3 = MagicMock()
-    s3.head_object.side_effect = Exception("NoSuchKey")
+    s3.get_object.side_effect = Exception("NoSuchKey")
 
     # Use a future from_date so exit_date would be in the future
     future_date = "2099-01-01"
@@ -488,8 +555,46 @@ def test_backfill_skips_future_exit_dates():
 
 
 def test_backfill_skips_already_evaluated():
+    """Backfill must skip dates where the eval file already has real records."""
+    existing_records = [
+        {"ticker": "AAPL", "direction": "bullish", "win": True, "return3d": 1.0,
+         "signalDate": "2026-04-01", "exitDate": "2026-04-06",
+         "ruleKeys": ["ma_stack"], "entryPrice": 100.0, "exitPrice": 101.0},
+    ]
     s3 = MagicMock()
-    s3.head_object.return_value = {}  # All dates already evaluated
+    # get_object returns non-empty records for each date → already evaluated
+    s3.get_object.return_value = {
+        "Body": MagicMock(read=lambda: json.dumps(existing_records).encode())
+    }
 
     count = backfill_evaluations(s3, "test-bucket", "2026-04-01", "2026-04-03")
     assert count == 0
+
+
+def test_backfill_reevaluates_empty_placeholder():
+    """Backfill must re-evaluate a date whose eval file is an empty weekend placeholder."""
+    report = {
+        "reportDate": "2026-04-01",
+        "stockSignals": [
+            {"symbol": "GOOG", "ruleKeys": ["ma_stack"], "lastPrice": 150.0, "ruleNames": []},
+            {"symbol": "GOOG", "ruleKeys": ["ma_stack"], "lastPrice": 150.0, "ruleNames": []},
+            {"symbol": "GOOG", "ruleKeys": ["ma_stack"], "lastPrice": 150.0, "ruleNames": []},
+        ],
+    }
+    s3 = MagicMock()
+    # get_object returns an empty file (weekend placeholder) for the eval check,
+    # then the report JSON for the actual evaluation fetch
+    s3.get_object.side_effect = [
+        {"Body": MagicMock(read=lambda: b"[]")},  # empty placeholder
+        {"Body": MagicMock(read=lambda: json.dumps(report).encode())},  # report
+    ]
+
+    with patch("stock_analysis.evaluation._fetch_prices_batch", return_value={"GOOG": 153.0}):
+        with patch("stock_analysis.evaluation.build_compliance_summary", return_value={"tickers": []}):
+            with patch("stock_analysis.evaluation.load_eval_files", return_value=[]):
+                count = backfill_evaluations(s3, "test-bucket", "2026-04-01", "2026-04-01")
+
+    # Should have written a real eval file
+    assert count == 1
+    put_keys = [call[1]["Key"] for call in s3.put_object.call_args_list]
+    assert "evaluations/2026-04-01.json" in put_keys

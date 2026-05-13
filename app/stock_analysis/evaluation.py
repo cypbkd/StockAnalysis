@@ -466,19 +466,38 @@ def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str,
     )
 
     eval_key = f"evaluations/{signal_date}.json"
+    exit_weekday = date.fromisoformat(exit_date).weekday()
 
+    # Determine whether we've already evaluated this signal_date.
+    # Weekend runs (Sat/Sun) write empty placeholder files to prevent yfinance
+    # thundering-herd retries. The same signal_date is reused by the following
+    # Monday run, so we must NOT let an empty placeholder block Monday's real
+    # evaluation: only treat the file as "done" if it contains actual records
+    # OR if today is also a weekend (no new data is available anyway).
     already_done = False
     try:
-        s3.head_object(Bucket=bucket, Key=eval_key)
-        already_done = True
-        logger.info("Evaluation for signal_date=%s already exists — skipping write", signal_date)
+        existing_data = json.loads(s3.get_object(Bucket=bucket, Key=eval_key)["Body"].read())
+        if exit_weekday >= 5:
+            already_done = True  # Weekend: placeholder is sufficient
+        else:
+            already_done = len(existing_data) > 0  # Weekday: need real records
+        if already_done:
+            logger.info(
+                "Evaluation for signal_date=%s already exists (%d records) — skipping write",
+                signal_date, len(existing_data),
+            )
+        else:
+            logger.info(
+                "Eval file for signal_date=%s exists but is empty (weekend placeholder) — re-evaluating on weekday exit_date=%s",
+                signal_date, exit_date,
+            )
     except Exception:
         pass
 
     if not already_done:
-        exit_weekday = date.fromisoformat(exit_date).weekday()
         if exit_weekday >= 5:
-            # Weekend — no market data; write an empty file so future runs skip this date
+            # Weekend — no market data; write an empty placeholder so future
+            # weekend retries skip the yfinance download.
             logger.info(
                 "exit_date=%s is a weekend (weekday=%d) — skipping price fetch, writing empty eval file",
                 exit_date, exit_weekday,
@@ -486,7 +505,7 @@ def run_nightly_evaluation(s3, bucket: str, run_date: str) -> Optional[Dict[str,
             records = []
         else:
             records = evaluate_report_date(s3, bucket, signal_date, exit_date)
-        # Always write the file (even empty []) so already_done=True on future runs
+        # Always write the file so already_done=True on same-run-date retries.
         s3.put_object(
             Bucket=bucket,
             Key=eval_key,
@@ -544,10 +563,12 @@ def backfill_evaluations(s3, bucket: str, from_date: str, to_date: str) -> int:
 
         eval_key = f"evaluations/{d_str}.json"
         try:
-            s3.head_object(Bucket=bucket, Key=eval_key)
-            logger.info("Already evaluated %s — skipping", d_str)
-            d += timedelta(days=1)
-            continue
+            existing_data = json.loads(s3.get_object(Bucket=bucket, Key=eval_key)["Body"].read())
+            if existing_data:
+                logger.info("Already evaluated %s (%d records) — skipping", d_str, len(existing_data))
+                d += timedelta(days=1)
+                continue
+            logger.info("Eval file for %s exists but is empty (weekend placeholder) — re-evaluating", d_str)
         except Exception:
             pass
 
