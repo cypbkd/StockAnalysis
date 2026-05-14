@@ -62,7 +62,7 @@ describe("StockAnalysisInfraStack", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
       Handler: "stock_analysis.handlers.aggregator.handler",
       Runtime: "python3.11",
-      Timeout: 300
+      Timeout: 600
     });
   });
 

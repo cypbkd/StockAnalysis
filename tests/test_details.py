@@ -169,6 +169,24 @@ class TestBuildPrompt:
         prompt = m._build_prompt("X", "X Corp", {}, [], {}, "2026-04-26")
         assert "X" in prompt
 
+    def test_includes_headlines_when_provided(self):
+        m = _reload()
+        headlines = ["NVIDIA beats earnings estimates", "AI chip demand surges 40%"]
+        prompt = m._build_prompt("NVDA", "NVIDIA", _SAMPLE_METRICS, [], _SAMPLE_RULE_CONFIGS, "2026-04-26", headlines=headlines)
+        assert "RECENT NEWS" in prompt
+        assert "NVIDIA beats earnings estimates" in prompt
+        assert "AI chip demand surges 40%" in prompt
+
+    def test_omits_news_section_when_no_headlines(self):
+        m = _reload()
+        prompt = m._build_prompt("NVDA", "NVIDIA", _SAMPLE_METRICS, [], _SAMPLE_RULE_CONFIGS, "2026-04-26")
+        assert "RECENT NEWS" not in prompt
+
+    def test_omits_news_section_when_headlines_empty(self):
+        m = _reload()
+        prompt = m._build_prompt("NVDA", "NVIDIA", _SAMPLE_METRICS, [], _SAMPLE_RULE_CONFIGS, "2026-04-26", headlines=[])
+        assert "RECENT NEWS" not in prompt
+
     def test_includes_sma200_in_prompt(self):
         m = _reload()
         metrics = {**_SAMPLE_METRICS, "sma_200": 620.0}
@@ -253,6 +271,24 @@ class TestGenerateTickerAnalysis:
              patch.dict(sys.modules, {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_types}):
             result = m.generate_ticker_analysis("NVDA", {}, [], _SAMPLE_RULE_CONFIGS, "2026-04-26")
         assert result is not None
+
+    def test_headlines_appear_in_gemini_prompt(self):
+        captured = []
+        mock_response = MagicMock()
+        mock_response.text = json.dumps(_SAMPLE_ANALYSIS)
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = lambda **kw: (captured.append(kw.get("contents", "")), mock_response)[1]
+        mock_genai = MagicMock()
+        mock_genai.Client.return_value = mock_client
+        mock_types = MagicMock()
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+        m = _reload()
+        headlines = ["Big headline one", "Another major event"]
+        with patch.object(m, "_get_api_key", return_value="test-key"), \
+             patch.dict(sys.modules, {"google": mock_google, "google.genai": mock_genai, "google.genai.types": mock_types}):
+            m.generate_ticker_analysis("NVDA", _SAMPLE_METRICS, [], _SAMPLE_RULE_CONFIGS, "2026-04-26", headlines=headlines)
+        assert any("Big headline one" in p for p in captured)
 
 
 # ---------------------------------------------------------------------------

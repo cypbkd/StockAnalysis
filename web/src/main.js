@@ -72,6 +72,29 @@ function getSymbolFromHash() {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function _applyLiveMetrics(liveMetrics) {
+  if (!liveMetrics) return;
+  const { price, change } = liveMetrics;
+
+  if (price != null) {
+    const priceEl = document.querySelector('.detail-price');
+    if (priceEl) {
+      priceEl.textContent = new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: 'USD', maximumFractionDigits: 2,
+      }).format(price);
+    }
+  }
+
+  if (change != null) {
+    const changeEl = document.querySelector('.detail-change');
+    if (changeEl) {
+      const prefix = change > 0 ? '+' : '';
+      changeEl.textContent = `${prefix}${change.toFixed(1)}%`;
+      changeEl.className = `detail-change ${change >= 0 ? 'is-positive' : 'is-negative'}`;
+    }
+  }
+}
+
 async function loadAndRenderAnalysis(symbol, reportDate, analysisUrl) {
   const placeholder = document.getElementById('ai-analysis-placeholder');
   if (!placeholder) return;
@@ -87,6 +110,7 @@ async function loadAndRenderAnalysis(symbol, reportDate, analysisUrl) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const analysis = await response.json();
     if (analysis.error) throw new Error(analysis.error);
+    _applyLiveMetrics(analysis.liveMetrics);
     placeholder.outerHTML = renderDetailAnalysis(analysis);
   } catch (err) {
     const el = document.getElementById('ai-analysis-placeholder');
