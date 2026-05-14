@@ -21,6 +21,7 @@ from datetime import date as _date
 
 from stock_analysis.data import RULE_CONFIGS
 from stock_analysis.details import generate_ticker_analysis
+from stock_analysis.news import fetch_ticker_headlines
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -52,6 +53,9 @@ def handler(event: dict, context: object) -> dict:
     s3 = boto3.client("s3")
     cache_key = f"analyses/{report_date}/{ticker}.json"
 
+    # Fetch current live price on every request — not cached since it changes continuously
+    live_metrics = _fetch_live_metrics(ticker)
+
     # Check S3 cache — a hit means we already paid for this Gemini call
     try:
         obj = s3.get_object(Bucket=bucket, Key=cache_key)
@@ -72,6 +76,9 @@ def handler(event: dict, context: object) -> dict:
                     logger.info("Backfilled fundamentals into cache: %s/%s", report_date, ticker)
                 except Exception as exc:
                     logger.warning("Cache backfill write error for %s/%s: %s", report_date, ticker, exc)
+        # Attach live metrics to response but never persist them to S3
+        if live_metrics:
+            cached["liveMetrics"] = live_metrics
         return _response(200, cached)
     except s3.exceptions.NoSuchKey:
         pass
@@ -83,16 +90,20 @@ def handler(event: dict, context: object) -> dict:
     if metrics is None:
         return _response(404, {"error": f"No signal data found for {ticker} on {report_date}"})
 
-    # Fetch fundamentals (PE, fair price) and generate Gemini analysis in parallel
+    # Fetch fundamentals (PE, fair price) and recent headlines in parallel context
     fundamentals = _fetch_fundamentals(ticker)
+    headlines = fetch_ticker_headlines(ticker, max_items=5)
+    if headlines:
+        logger.info("Fetched %d headlines for %s", len(headlines), ticker)
 
-    # Generate analysis via Gemini
+    # Generate analysis via Gemini — include recent news so the brief reflects current events
     analysis = generate_ticker_analysis(
         ticker=ticker,
         metrics=metrics,
         rule_names=rule_names,
         rule_configs=RULE_CONFIGS,
         trade_date=report_date,
+        headlines=headlines,
     )
     if analysis is None:
         return _response(503, {"error": "Analysis generation failed — check Lambda logs"})
@@ -102,7 +113,7 @@ def handler(event: dict, context: object) -> dict:
         logger.info("Fundamentals attached for %s: PE=%s fwdPE=%s fairPrice=%s",
                     ticker, fundamentals.get("pe"), fundamentals.get("forwardPe"), fundamentals.get("fairPrice"))
 
-    # Cache result so repeat views are free
+    # Cache result — liveMetrics deliberately excluded (always fetched fresh per request)
     try:
         s3.put_object(
             Bucket=bucket,
@@ -114,7 +125,12 @@ def handler(event: dict, context: object) -> dict:
     except Exception as exc:
         logger.warning("Cache write error for %s/%s: %s", report_date, ticker, exc)
 
-    return _response(200, analysis)
+    # Build response with live metrics as a new dict so we never mutate the cached body
+    response_data = {**analysis}
+    if live_metrics:
+        response_data["liveMetrics"] = live_metrics
+
+    return _response(200, response_data)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +199,31 @@ def _find_signal_data(s3, bucket: str, report_date: str, ticker: str):
             return {k: v for k, v in metrics.items() if v is not None}, signal.get("ruleNames", [])
 
     return None, []
+
+
+def _fetch_live_metrics(ticker: str) -> dict:
+    """Fetch the current live price and intraday change% via yfinance fast_info.
+
+    Uses fast_info (no 365-day history) so the call is cheap — typically < 500 ms.
+    Returns {} on any failure so callers degrade gracefully.
+    """
+    try:
+        import yfinance as yf
+        fi = yf.Ticker(ticker).fast_info
+        last_price = fi.last_price
+        prev_close = fi.previous_close
+        if last_price is None:
+            return {}
+        change_pct = ((last_price - prev_close) / prev_close * 100) if prev_close else 0.0
+        result = {
+            "price": round(float(last_price), 2),
+            "change": round(float(change_pct), 2),
+        }
+        logger.info("Live metrics for %s: price=%.2f change=%.2f%%", ticker, result["price"], result["change"])
+        return result
+    except Exception as exc:
+        logger.warning("Live metrics fetch failed for %s: %s", ticker, exc)
+        return {}
 
 
 def _fetch_fundamentals(ticker: str) -> dict:

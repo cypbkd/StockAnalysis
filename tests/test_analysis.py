@@ -360,3 +360,113 @@ class TestFetchFundamentals:
         assert "fairPrice" not in result
         # earningsGrowth present since 5y estimate was available, but no EPS to compute fair price
         assert result["earningsGrowth"] == 25.4
+
+
+# ---------------------------------------------------------------------------
+# _fetch_live_metrics
+# ---------------------------------------------------------------------------
+
+class TestFetchLiveMetrics:
+    def _module(self):
+        import stock_analysis.handlers.analysis as m
+        return m
+
+    @staticmethod
+    def _make_yf(last_price, previous_close):
+        fast_info = MagicMock()
+        fast_info.last_price = last_price
+        fast_info.previous_close = previous_close
+        ticker = MagicMock()
+        ticker.fast_info = fast_info
+        mock_yf = MagicMock()
+        mock_yf.Ticker.return_value = ticker
+        return mock_yf
+
+    def test_returns_price_and_change(self):
+        m = self._module()
+        mock_yf = self._make_yf(last_price=100.0, previous_close=95.0)
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_live_metrics("NVDA")
+        assert result["price"] == 100.0
+        assert abs(result["change"] - 5.26) < 0.01
+
+    def test_returns_empty_on_exception(self):
+        m = self._module()
+        mock_yf = MagicMock()
+        mock_yf.Ticker.side_effect = Exception("network error")
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_live_metrics("NVDA")
+        assert result == {}
+
+    def test_returns_empty_when_last_price_is_none(self):
+        m = self._module()
+        mock_yf = self._make_yf(last_price=None, previous_close=95.0)
+        import sys
+        with patch.dict(sys.modules, {"yfinance": mock_yf}):
+            result = m._fetch_live_metrics("NVDA")
+        assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# liveMetrics in handler responses
+# ---------------------------------------------------------------------------
+
+class TestLiveMetricsInResponse:
+    def test_live_metrics_attached_on_cache_hit(self, monkeypatch):
+        monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+        import stock_analysis.handlers.analysis as m
+        mock_s3 = _make_s3_client(cached_analysis=_SAMPLE_ANALYSIS)
+        live = {"price": 123.45, "change": 1.5}
+        with patch.dict(sys.modules, {"boto3": _mock_boto3(mock_s3)}), \
+             patch.object(m, "_fetch_live_metrics", return_value=live):
+            response = m.handler(_make_event(), None)
+        body = json.loads(response["body"])
+        assert body["liveMetrics"] == live
+
+    def test_live_metrics_attached_on_cache_miss(self, monkeypatch):
+        monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+        import stock_analysis.handlers.analysis as m
+        mock_s3 = _make_s3_client(report_json=_SAMPLE_REPORT)
+        live = {"price": 900.0, "change": 3.2}
+        with patch.dict(sys.modules, {"boto3": _mock_boto3(mock_s3)}), \
+             patch.object(m, "_fetch_live_metrics", return_value=live), \
+             patch.object(m, "_fetch_fundamentals", return_value={}), \
+             patch.object(m, "fetch_ticker_headlines", return_value=[]), \
+             patch.object(m, "generate_ticker_analysis", return_value=_SAMPLE_ANALYSIS):
+            response = m.handler(_make_event(), None)
+        body = json.loads(response["body"])
+        assert body["liveMetrics"] == live
+
+    def test_live_metrics_not_persisted_in_cache(self, monkeypatch):
+        monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+        import stock_analysis.handlers.analysis as m
+        mock_s3 = _make_s3_client(report_json=_SAMPLE_REPORT)
+        live = {"price": 900.0, "change": 3.2}
+        with patch.dict(sys.modules, {"boto3": _mock_boto3(mock_s3)}), \
+             patch.object(m, "_fetch_live_metrics", return_value=live), \
+             patch.object(m, "_fetch_fundamentals", return_value={}), \
+             patch.object(m, "fetch_ticker_headlines", return_value=[]), \
+             patch.object(m, "generate_ticker_analysis", return_value=_SAMPLE_ANALYSIS):
+            m.handler(_make_event(), None)
+        put_calls = mock_s3.put_object.call_args_list
+        for c in put_calls:
+            if "analyses/" in str(c):
+                body_str = c.kwargs.get("Body", "{}")
+                assert "liveMetrics" not in json.loads(body_str)
+
+    def test_headlines_fetched_on_cache_miss(self, monkeypatch):
+        monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+        import stock_analysis.handlers.analysis as m
+        mock_s3 = _make_s3_client(report_json=_SAMPLE_REPORT)
+        headlines = ["Big news one", "Big news two"]
+        with patch.dict(sys.modules, {"boto3": _mock_boto3(mock_s3)}), \
+             patch.object(m, "_fetch_live_metrics", return_value={}), \
+             patch.object(m, "_fetch_fundamentals", return_value={}), \
+             patch.object(m, "fetch_ticker_headlines", return_value=headlines) as mock_hl, \
+             patch.object(m, "generate_ticker_analysis", return_value=_SAMPLE_ANALYSIS) as mock_gen:
+            m.handler(_make_event(), None)
+        mock_hl.assert_called_once_with("NVDA", max_items=5)
+        _, kwargs = mock_gen.call_args
+        assert kwargs.get("headlines") == headlines

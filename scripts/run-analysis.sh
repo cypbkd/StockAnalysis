@@ -98,6 +98,7 @@ for ((attempt=1; attempt<=AGG_RETRIES; attempt++)); do
   AGG_ERROR=$(AWS_PROFILE="$AWS_PROFILE" aws lambda invoke \
     --region "$AWS_REGION" \
     --cli-binary-format raw-in-base64-out \
+    --cli-read-timeout 660 \
     --function-name "$AGGREGATOR_FN" \
     --payload "{\"run_date\":\"$RUN_DATE\"}" \
     "$AGG_OUT" 2>&1) && break

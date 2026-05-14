@@ -54,6 +54,7 @@ def _build_prompt(
     rule_names: List[str],
     rule_configs: Dict[str, Any],
     trade_date: str,
+    headlines: Optional[List[str]] = None,
 ) -> str:
     close = metrics.get("close", 0) or 0
     change_pct = metrics.get("change_percent", 0) or 0
@@ -91,6 +92,11 @@ def _build_prompt(
             rule_lines.append(f"- {name}")
     rules_block = "\n".join(rule_lines)
 
+    news_block = ""
+    if headlines:
+        news_lines = "\n".join(f"- {h}" for h in headlines)
+        news_block = f"\n\nRECENT NEWS (past 24 hours):\n{news_lines}"
+
     return f"""You are a Professional Quantitative Analyst. Analyze {ticker} ({company_name}) based on the following live market data and provide a structured trading brief for the next trading session.
 
 TICKER: {ticker} ({company_name})
@@ -113,7 +119,7 @@ MARKET METRICS:
 - Long-term Pivot S1/S2 (200d): ${lt_pivot_s1:.2f} / ${lt_pivot_s2:.2f}{earnings_line}
 
 TRIGGERED RULES ({len(rule_names)} matched):
-{rules_block}
+{rules_block}{news_block}
 
 Return a JSON object with exactly this structure (use the real metric values provided above):
 {{
@@ -165,6 +171,7 @@ def generate_ticker_analysis(
     rule_names: List[str],
     rule_configs: Dict[str, Any],
     trade_date: str,
+    headlines: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Generate a structured AI trading brief for one ticker.  Returns None on any failure."""
     api_key = _get_api_key()
@@ -172,7 +179,7 @@ def generate_ticker_analysis(
         return None
 
     company_name = metrics.get("company_name") or ticker
-    prompt = _build_prompt(ticker, company_name, metrics, rule_names, rule_configs, trade_date)
+    prompt = _build_prompt(ticker, company_name, metrics, rule_names, rule_configs, trade_date, headlines)
 
     try:
         from google import genai
