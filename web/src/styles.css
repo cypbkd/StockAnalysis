@@ -1681,7 +1681,7 @@ details[open] .rule-explanation-header {
 
 .section-divider {
   border: none;
-  border-top: 1px solid var(--ink);
+  border-top: var(--border-heavy);
   margin: 32px 0 0;
 }
 
