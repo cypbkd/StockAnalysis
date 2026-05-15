@@ -1679,6 +1679,12 @@ details[open] .rule-explanation-header {
   color: var(--neutral-400);
 }
 
+.ticker-scorecard-section {
+  margin-top: 56px;
+  border-top: var(--border-heavy);
+  padding-top: 16px;
+}
+
 .report-footer {
   border-top: var(--border-heavy);
   padding-top: 14px;
