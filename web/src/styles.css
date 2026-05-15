@@ -1679,10 +1679,10 @@ details[open] .rule-explanation-header {
   color: var(--neutral-400);
 }
 
-.section-divider {
-  border: none;
+.ticker-scorecard-section {
+  margin-top: 32px;
   border-top: var(--border-heavy);
-  margin: 32px 0 0;
+  padding-top: 16px;
 }
 
 .report-footer {

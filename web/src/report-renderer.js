@@ -986,8 +986,6 @@ export function renderSymbolDetail(report, symbol) {
           </div>
         </section>
 
-        <hr class="section-divider" aria-hidden="true">
-
         <div id="ticker-scorecard-placeholder" class="ticker-scorecard-section" aria-live="polite">
           <div class="section-heading">
             <span class="section-label">Scorecard</span>
