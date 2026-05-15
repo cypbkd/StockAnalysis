@@ -330,6 +330,33 @@ test('renderSymbolDetail placeholder has aria-live for screen readers', () => {
   assert.match(html, /aria-live="polite"/);
 });
 
+// ── renderSymbolDetail — ticker scorecard placeholder ────────────────────────
+
+test('renderSymbolDetail renders the ticker scorecard placeholder', () => {
+  const html = renderSymbolDetail(detailReport, 'NVDA');
+
+  assert.match(html, /ticker-scorecard-placeholder/);
+  assert.match(html, /Score Card/);
+  assert.match(html, /Loading score card/);
+});
+
+test('renderSymbolDetail scorecard placeholder has aria-live for screen readers', () => {
+  const html = renderSymbolDetail(detailReport, 'NVDA');
+
+  assert.match(html, /ticker-scorecard-placeholder/);
+  assert.match(html, /aria-live="polite"/);
+});
+
+test('renderSymbolDetail scorecard placeholder appears after the rules section', () => {
+  const html = renderSymbolDetail(detailReport, 'NVDA');
+
+  const rulesIdx = html.indexOf('Why this signal fired');
+  const scorecardIdx = html.indexOf('ticker-scorecard-placeholder');
+  assert.ok(rulesIdx !== -1, 'rules section not found');
+  assert.ok(scorecardIdx !== -1, 'scorecard placeholder not found');
+  assert.ok(scorecardIdx > rulesIdx, 'scorecard should appear after rules section');
+});
+
 // ── renderDetailAnalysis ──────────────────────────────────────────────────────
 
 test('renderDetailAnalysis renders summary paragraph', () => {

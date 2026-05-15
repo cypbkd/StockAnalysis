@@ -136,6 +136,7 @@ function applyView(report, config) {
     window.scrollTo(0, 0);
     injectTradingViewChart(symbol);
     loadAndRenderAnalysis(symbol, report.reportDate, config?.analysisUrl);
+    loadAndRenderTickerScorecard(symbol);
     return;
   }
 
@@ -157,6 +158,27 @@ async function bootstrap() {
 window.addEventListener('hashchange', () => {
   applyView(cachedReport, cachedConfig);
 });
+
+async function loadAndRenderTickerScorecard(symbol) {
+  const placeholder = document.getElementById('ticker-scorecard-placeholder');
+  if (!placeholder) return;
+  try {
+    const res = await fetch(`./evaluations/tickers/${encodeURIComponent(symbol)}.json`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const detail = await res.json();
+    console.log(`[scorecard] Loaded compliance detail for ${symbol}`);
+    placeholder.innerHTML = `
+      <div class="section-heading">
+        <span class="section-label">Scorecard</span>
+        <h2>Score Card</h2>
+      </div>
+      ${renderComplianceDetail(detail)}
+    `;
+  } catch (err) {
+    console.warn(`[scorecard] No compliance data for ${symbol}:`, err.message);
+    placeholder.remove();
+  }
+}
 
 // Compliance detail toggle — called by onclick in the compliance table rows
 const _complianceDetailCache = {};
