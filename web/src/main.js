@@ -145,6 +145,20 @@ function applyView(report, config) {
     : 'Latest';
   document.title = `${dateLabel} Analysis Report`;
   root.innerHTML = renderReportApp(report);
+  calibrateTickerSpeed();
+}
+
+// Set animation duration so the ticker scrolls at a constant ~120px/s regardless of content length.
+function calibrateTickerSpeed() {
+  const track = document.querySelector('.news-ticker-track');
+  if (!track) return;
+  // scrollWidth is the full duplicated width; half of it is one loop pass.
+  const halfWidth = track.scrollWidth / 2;
+  if (halfWidth <= 0) return;
+  const PX_PER_SECOND = 120;
+  const duration = halfWidth / PX_PER_SECOND;
+  track.style.animationDuration = `${duration.toFixed(1)}s`;
+  console.log(`[ticker] content half-width=${halfWidth}px, duration=${duration.toFixed(1)}s`);
 }
 
 let cachedReport = null;
