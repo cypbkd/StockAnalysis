@@ -986,6 +986,14 @@ export function renderSymbolDetail(report, symbol) {
           </div>
         </section>
 
+        <div id="ticker-scorecard-placeholder" class="ticker-scorecard-section" aria-live="polite">
+          <div class="section-heading">
+            <span class="section-label">Scorecard</span>
+            <h2>Score Card</h2>
+          </div>
+          <p class="ai-loading-message">Loading score card…</p>
+        </div>
+
         <div class="ornament-divider" aria-hidden="true">✧ ✧ ✧</div>
       </main>
     </div>
