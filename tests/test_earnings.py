@@ -1,7 +1,7 @@
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from stock_analysis import earnings
 
@@ -107,6 +107,98 @@ def test_fetch_earnings_dates_includes_past_week_days(monkeypatch):
     assert "AAPL" in result, "Past-week earnings (days=-2) should be captured"
     assert result["AAPL"]["days"] == -2
     assert result["AAPL"]["date"] == "2026-04-27"
+
+
+def test_fetch_earnings_api_day_cached_refreshes_stale_future_dates(monkeypatch):
+    """Cached Earnings API data for upcoming dates must be re-fetched if older than TTL."""
+    import boto3
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+    monkeypatch.setattr(earnings, "_api_key_cache", "test-key")
+
+    future_day = date.today() + timedelta(days=3)
+    stale_modified = datetime.now(timezone.utc) - timedelta(days=8)  # 8 days old → stale
+
+    fresh_payload = {"pre": [{"symbol": "NVDA"}], "after": [], "notSupplied": []}
+    cached_payload = {"pre": [{"symbol": "OLD"}], "after": [], "notSupplied": []}
+
+    mock_s3 = MagicMock()
+    mock_s3.get_object.return_value = {
+        "Body": MagicMock(read=lambda: b'{"pre":[{"symbol":"OLD"}],"after":[],"notSupplied":[]}'),
+        "LastModified": stale_modified,
+    }
+
+    calls = []
+
+    def fake_fetch_day(day, api_key):
+        calls.append(day)
+        return fresh_payload
+
+    monkeypatch.setattr(earnings, "_fetch_earnings_api_day", fake_fetch_day)
+
+    with patch("boto3.client", return_value=mock_s3):
+        result = earnings._fetch_earnings_api_day_cached(future_day, "test-key")
+
+    assert calls == [future_day], "Stale future cache should trigger a live re-fetch"
+    assert result == fresh_payload
+
+
+def test_fetch_earnings_api_day_cached_uses_fresh_cache_for_future_dates(monkeypatch):
+    """Cached Earnings API data for upcoming dates is returned as-is if within TTL."""
+    monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+
+    future_day = date.today() + timedelta(days=3)
+    fresh_modified = datetime.now(timezone.utc) - timedelta(days=3)  # 3 days old → still fresh
+
+    cached_payload = {"pre": [{"symbol": "AAPL"}], "after": [], "notSupplied": []}
+
+    mock_s3 = MagicMock()
+    mock_s3.get_object.return_value = {
+        "Body": MagicMock(read=lambda: b'{"pre":[{"symbol":"AAPL"}],"after":[],"notSupplied":[]}'),
+        "LastModified": fresh_modified,
+    }
+
+    calls = []
+
+    def fake_fetch_day(day, api_key):
+        calls.append(day)
+        return {}
+
+    monkeypatch.setattr(earnings, "_fetch_earnings_api_day", fake_fetch_day)
+
+    with patch("boto3.client", return_value=mock_s3):
+        result = earnings._fetch_earnings_api_day_cached(future_day, "test-key")
+
+    assert calls == [], "Fresh cache within TTL should NOT trigger a live re-fetch"
+    assert result == cached_payload
+
+
+def test_fetch_earnings_api_day_cached_never_refreshes_past_dates(monkeypatch):
+    """Past earnings dates are finalized — they must never be re-fetched even if cache is ancient."""
+    monkeypatch.setenv("CACHE_BUCKET", "test-bucket")
+
+    past_day = date.today() - timedelta(days=30)
+    ancient_modified = datetime.now(timezone.utc) - timedelta(days=60)
+
+    mock_s3 = MagicMock()
+    mock_s3.get_object.return_value = {
+        "Body": MagicMock(read=lambda: b'{"pre":[{"symbol":"IBM"}],"after":[],"notSupplied":[]}'),
+        "LastModified": ancient_modified,
+    }
+
+    calls = []
+
+    def fake_fetch_day(day, api_key):
+        calls.append(day)
+        return {}
+
+    monkeypatch.setattr(earnings, "_fetch_earnings_api_day", fake_fetch_day)
+
+    with patch("boto3.client", return_value=mock_s3):
+        result = earnings._fetch_earnings_api_day_cached(past_day, "test-key")
+
+    assert calls == [], "Past dates should never trigger a live re-fetch regardless of cache age"
 
 
 def test_fetch_earnings_dates_only_fetches_timing_for_actual_earnings_dates(monkeypatch):
