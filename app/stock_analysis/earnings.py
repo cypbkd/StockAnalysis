@@ -7,7 +7,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from typing import Dict, List, Set
 import urllib.parse
 import urllib.request
@@ -133,6 +133,9 @@ def _fetch_earnings_api_day(day: date, api_key: str) -> Dict:
         return {}
 
 
+_EARNINGS_CACHE_TTL_DAYS = 7  # re-fetch future dates if cache is older than this
+
+
 def _fetch_earnings_api_day_cached(day: date, api_key: str) -> Dict:
     bucket = os.environ.get("CACHE_BUCKET", "")
     if not bucket:
@@ -143,6 +146,14 @@ def _fetch_earnings_api_day_cached(day: date, api_key: str) -> Dict:
         import boto3
         s3 = boto3.client("s3")
         obj = s3.get_object(Bucket=bucket, Key=key)
+        # For future/upcoming earnings dates, refresh the cache if it's stale —
+        # companies revise their dates and timing after the initial announcement.
+        is_future = day >= date.today()
+        if is_future:
+            age = datetime.now(timezone.utc) - obj["LastModified"]
+            if age > timedelta(days=_EARNINGS_CACHE_TTL_DAYS):
+                logger.info("Earnings API cache stale (%d days old) for %s — re-fetching", age.days, day.isoformat())
+                raise ValueError("stale")
         return json.loads(obj["Body"].read())
     except Exception:
         payload = _fetch_earnings_api_day(day, api_key)
